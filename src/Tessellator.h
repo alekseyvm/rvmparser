@@ -42,6 +42,7 @@ private:
   std::vector<Vec3f> vec3;
   std::vector<float> normals;
   std::vector<uint32_t> indices;
+  std::vector<uint32_t> smoothingGroups;
 
   std::vector<unsigned> u0;
   std::vector<uint32_t> u1;

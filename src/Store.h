@@ -22,6 +22,7 @@ struct Polygon
 struct Triangulation {
   float* vertices = nullptr;
   float* normals = nullptr;
+  uint32_t* smoothingGroups = nullptr;    // One uint per triangle.
   uint32_t* indices = 0;
   uint32_t vertices_n = 0;
   uint32_t triangles_n = 0;
@@ -75,6 +76,7 @@ struct Geometry
   const char* colorName = nullptr;
   void * clientData = nullptr;
   uint32_t color = 0x202020u;
+  uint32_t faceIds[6] = { 0, 1, 2, 3, 4, 5 };
 
   Kind kind;
   unsigned id;

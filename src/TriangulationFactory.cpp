@@ -1197,7 +1197,7 @@ Triangulation* TriangulationFactory::sphereBasedShape(Arena* arena, const Geomet
   }
 
 
-  tri->vertices_n = 3 * s;
+  tri->vertices_n = s;
   tri->vertices = (float*)arena->alloc(3 * sizeof(float)*tri->vertices_n);
   tri->normals = (float*)arena->alloc(3 * sizeof(float)*tri->vertices_n);
 
@@ -1216,7 +1216,7 @@ Triangulation* TriangulationFactory::sphereBasedShape(Arena* arena, const Geomet
       l = vertex(tri->normals, tri->vertices, l, nx, ny, nz / scale_z, radius*nx, radius*ny, z);
     }
   }
-  assert(l == 3 * s);
+  assert(l == 3 * tri->vertices_n);
 
   unsigned o_c = 0;
   indices.clear();

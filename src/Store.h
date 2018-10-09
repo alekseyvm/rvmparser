@@ -76,7 +76,6 @@ struct Geometry
   const char* colorName = nullptr;
   void * clientData = nullptr;
   uint32_t color = 0x202020u;
-  uint32_t faceIds[6] = { 0, 1, 2, 3, 4, 5 };
 
   Kind kind;
   unsigned id;
@@ -269,6 +268,7 @@ public:
   unsigned nonEmptyNonLeafCount() const { return numNonEmptyNonLeaves; }
   unsigned geometryCount_() const { return numGeometries; }
   unsigned geometryCountAllocated() const { return numGeometriesAllocated; }
+  unsigned connectionCountAllocated() const { return numConnectionsAlloacted; }
 
   const char* errorString() const { return error_str; }
   void setErrorString(const char* str);
@@ -296,6 +296,7 @@ private:
   unsigned numNonEmptyNonLeaves = 0;
   unsigned numGeometries = 0;
   unsigned numGeometriesAllocated = 0;
+  unsigned numConnectionsAlloacted = 0;
 
   const char* error_str = nullptr;
 

@@ -213,26 +213,33 @@ namespace {
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
   }
 
-  unsigned triIndices(uint32_t* indices, unsigned  l, unsigned o, unsigned v0, unsigned v1, unsigned v2)
-  {
-    indices[l++] = o + v0;
-    indices[l++] = o + v1;
-    indices[l++] = o + v2;
-    return l;
-  }
+  //unsigned triIndices(uint32_t* indices, unsigned  l, unsigned o, unsigned v0, unsigned v1, unsigned v2)
+  //{
+  //  indices[l++] = o + v0;
+  //  indices[l++] = o + v1;
+  //  indices[l++] = o + v2;
+  //  return l;
+  //}
+
+  //void triIndices3(uint32_t* indices, unsigned  l, unsigned o, unsigned v0, unsigned v1, unsigned v2)
+  //{
+  //  indices[3 * l + 0] = o + v0;
+  //  indices[3 * l + 1] = o + v1;
+  //  indices[3 * l + 2] = o + v2;
+  //}
 
 
-  unsigned quadIndices(uint32_t* indices, unsigned  l, unsigned o, unsigned v0, unsigned v1, unsigned v2, unsigned v3)
-  {
-    indices[l++] = o + v0;
-    indices[l++] = o + v1;
-    indices[l++] = o + v2;
+  //unsigned quadIndices(uint32_t* indices, unsigned  l, unsigned o, unsigned v0, unsigned v1, unsigned v2, unsigned v3)
+  //{
+  //  indices[l++] = o + v0;
+  //  indices[l++] = o + v1;
+  //  indices[l++] = o + v2;
 
-    indices[l++] = o + v2;
-    indices[l++] = o + v3;
-    indices[l++] = o + v0;
-    return l;
-  }
+  //  indices[l++] = o + v2;
+  //  indices[l++] = o + v3;
+  //  indices[l++] = o + v0;
+  //  return l;
+  //}
 
   void quadIndices3(uint32_t* indices, unsigned  l, unsigned o, unsigned v0, unsigned v1, unsigned v2, unsigned v3)
   {
@@ -315,6 +322,7 @@ TriangulationFactory::TriangulationFactory(Store* store, Logger logger, float to
   minSamples(minSamples),
   maxSamples(std::max(minSamples, maxSamples))
 {
+  grow.accommodate(store->geometryCountAllocated());
 }
 
 
@@ -332,6 +340,68 @@ float TriangulationFactory::sagittaBasedError(float arc, float radius, float sca
   return s;
 }
 
+void TriangulationFactory::growSmoothingGroup(const Geometry* seed, uint32_t smoothingGroup)
+{
+  assert(smoothingGroup);
+
+  uint32_t stack_p = 0;
+  grow[stack_p++] = seed;
+  while (stack_p) {
+    auto * thisGeo = grow[--stack_p];
+
+    for (auto * con : thisGeo->connections) {
+      if (!con) continue;
+
+      if (definedSmoothingGroups.get(uint64_t(con))) {
+        continue;
+      }
+
+      bool isFirst = thisGeo == con->geo[0];
+      auto thisOffset = con->offset[isFirst ? 0 : 1];
+      auto thisIFace = getInterface(thisGeo, thisOffset);
+
+      auto * thatGeo = con->geo[isFirst ? 1 : 0];
+      auto thatOffset = con->offset[isFirst ? 1 : 0];
+      auto thatIFace = getInterface(thatGeo, thatOffset);
+
+      if (thisIFace.kind != thatIFace.kind && (thisIFace.kind == Interface::Kind::Circular)) {
+        auto thisRadius = thisIFace.circular.radius;
+        auto thatRadius = thatIFace.circular.radius;
+        if (std::abs(thisRadius - thatRadius) < 0.05f*std::max(thisRadius, thatRadius)) {
+
+          grow[stack_p++] = thatGeo;
+          definedSmoothingGroups.insert(uint64_t(con), uint64_t(smoothingGroup));
+        }
+      }
+    }
+  }
+}
+
+
+uint32_t TriangulationFactory::getShellSmootingGroup(const Geometry* geo)
+{
+  if (geo == nullptr) return nextSmootingGroup++;
+
+  // First, check if any of the connections have smoothing group defined.
+  auto smoothingGroup = 0;
+  for (auto * con : geo->connections) {
+    if (con) {
+      uint64_t value;
+      if (definedSmoothingGroups.get(value, uint64_t(con))) {
+        smoothingGroup = uint32_t(value);
+        assert(smoothingGroup);
+        break;
+      }
+    }
+  }
+  if (smoothingGroup == 0) {
+    smoothingGroup = nextSmootingGroup++;
+  }
+  // Propagate to unvisitied neighbours recursively.
+  growSmoothingGroup(geo, smoothingGroup);
+
+  return smoothingGroup;
+}
 
 
 
@@ -427,25 +497,25 @@ Triangulation* TriangulationFactory::pyramid(Arena* arena, const Geometry* geo, 
 
   l = 0;
   unsigned o = 0;
-  tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->vertices_n);
+  tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->triangles_n);
   tri->indices = (uint32_t*)arena->alloc(3 * sizeof(uint32_t) * tri->triangles_n);
   for (unsigned i = 0; i < 4; i++) {
     if (cap[i] == false) continue;
-    auto smoothingGroup = geo->faceIds[i];
+    auto smoothingGroup = getCapSmoothingGroup(geo, i);
     quadIndices3(tri->indices, l, o, 0, 1, 2, 3);
     tri->smoothingGroups[l++] = smoothingGroup;
     tri->smoothingGroups[l++] = smoothingGroup;
     o += 4;
   }
   if (cap[4]) {
-    auto smoothingGroup = geo->faceIds[4];
+    auto smoothingGroup = getCapSmoothingGroup(geo, 4);
     quadIndices3(tri->indices, l, o, 3, 2, 1, 0);
     tri->smoothingGroups[l++] = smoothingGroup;
     tri->smoothingGroups[l++] = smoothingGroup;
     o += 4;
   }
   if (cap[5]) {
-    auto smoothingGroup = geo->faceIds[5];
+    auto smoothingGroup = getCapSmoothingGroup(geo, 5);
     quadIndices3(tri->indices, l, o, 0, 1, 2, 3);
     tri->smoothingGroups[l++] = smoothingGroup;
     tri->smoothingGroups[l++] = smoothingGroup;
@@ -510,7 +580,6 @@ Triangulation* TriangulationFactory::box(Arena* arena, const Geometry* geo, floa
   }
 
   Triangulation* tri = arena->alloc<Triangulation>();
-  tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->vertices_n);
   tri->error = 0.f;
 
   if (faces_n) {
@@ -520,19 +589,19 @@ Triangulation* TriangulationFactory::box(Arena* arena, const Geometry* geo, floa
 
     tri->triangles_n = 2 * faces_n;
     tri->indices = (uint32_t*)arena->alloc(3 * sizeof(uint32_t)*tri->triangles_n);
+    tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->triangles_n);
 
     unsigned o = 0;
     unsigned i_v = 0;
     unsigned i_p = 0;
     for (unsigned f = 0; f < 6; f++) {
       if (!faces[f]) continue;
-
-      auto smoothingGroup = geo->faceIds[f];
+      auto smoothingGroup = getCapSmoothingGroup(geo, f);
 
       for (unsigned i = 0; i < 4; i++) {
         i_v = vertex(tri->normals, tri->vertices, i_v, N[f].data, V[f][i].data);
       }
-      quadIndices(tri->indices, i_p, o, 0, 1, 2, 3);
+      quadIndices3(tri->indices, i_p, o, 0, 1, 2, 3);
       tri->smoothingGroups[i_p++] = smoothingGroup;
       tri->smoothingGroups[i_p++] = smoothingGroup;
 
@@ -641,12 +710,12 @@ Triangulation* TriangulationFactory::rectangularTorus(Arena* arena, const Geomet
   unsigned o = 0;
 
   tri->triangles_n = (shell ? 4 * 2 * (samples - 1) : 0) + (cap[0] ? 2 : 0) + (cap[1] ? 2 : 0);
-  tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->vertices_n);
+  tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->triangles_n);
   tri->indices = (uint32_t*)arena->alloc(3 * sizeof(uint32_t)*tri->triangles_n);
 
   if (shell) {
-    auto smoothingGroup = geo->faceIds[0];
-
+    auto smoothingGroup = getShellSmootingGroup(geo);
+    
     for (unsigned i = 0; i + 1 < samples; i++) {
       for (unsigned k = 0; k < 4; k++) {
         tri->indices[3 * l + 0] = 4 * 2 * (i + 0) + 0 + 2 * k;
@@ -663,8 +732,8 @@ Triangulation* TriangulationFactory::rectangularTorus(Arena* arena, const Geomet
     o += 4 * 2 * samples;
   }
   if (cap[0]) {
-    auto smoothingGroup = geo->faceIds[1];
-
+    auto smoothingGroup = getCapSmoothingGroup(geo, 0);
+    
     tri->indices[3 * l + 0] = o + 0;
     tri->indices[3 * l + 1] = o + 2;
     tri->indices[3 * l + 2] = o + 1;
@@ -677,7 +746,7 @@ Triangulation* TriangulationFactory::rectangularTorus(Arena* arena, const Geomet
     o += 4;
   }
   if (cap[1]) {
-    auto smoothingGroup = geo->faceIds[2];
+    auto smoothingGroup = getCapSmoothingGroup(geo, 1);
 
     tri->indices[3 * l + 0] = o + 0;
     tri->indices[3 * l + 1] = o + 1;
@@ -785,14 +854,14 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
 
   // generate indices
   tri->triangles_n = (shell ? 2 * (samples_l - 1)*samples_s : 0) + (samples_s - 2) *((cap[0] ? 1 : 0) + (cap[1] ? 1 : 0));
-  tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->vertices_n);
+  tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->triangles_n);
   tri->indices = (uint32_t*)arena->alloc(3 * sizeof(uint32_t)*tri->triangles_n);
 
   l = 0;
   unsigned o = 0;
   if (shell) {
-    auto smoothingGroup = geo->faceIds[0];
-
+    auto smoothingGroup = getShellSmootingGroup(geo);
+    
     for (unsigned u = 0; u + 1 < samples_l; u++) {
       for (unsigned v = 0; v + 1 < samples_s; v++) {
         tri->indices[3 * l + 0] = samples_s * (u + 0) + (v + 0);
@@ -821,7 +890,7 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
   u1.resize(samples_s);
   u2.resize(samples_s);
   if (cap[0]) {
-    auto smoothingGroup = geo->faceIds[1];
+    auto smoothingGroup = getCapSmoothingGroup(geo, 0);
 
     for (unsigned i = 0; i < samples_s; i++) {
       u1[i] = o + i;
@@ -830,7 +899,7 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
     o += samples_s;
   }
   if (cap[1]) {
-    auto smoothingGroup = geo->faceIds[2];
+    auto smoothingGroup = getCapSmoothingGroup(geo, 1);
 
     for (unsigned i = 0; i < samples_s; i++) {
       u1[i] = o + (samples_s - 1) - i;
@@ -945,13 +1014,13 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
   assert(l == 3 * tri->vertices_n);
 
   tri->triangles_n = (shell ? 2 * samples : 0) + (cap[0] ? samples - 2 : 0) + (cap[1] ? samples - 2 : 0);
-  tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->vertices_n);
+  tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->triangles_n);
   tri->indices = (uint32_t*)arena->alloc(3 * sizeof(uint32_t)*tri->triangles_n);
 
   l = 0;
   unsigned o = 0;
   if (shell) {
-    auto smoothingGroup = geo->faceIds[0];
+    auto smoothingGroup = getShellSmootingGroup(geo);
     for (unsigned i = 0; i < samples; i++) {
       unsigned ii = (i + 1) % samples;
       quadIndices3(tri->indices, l, 0, 2 * i, 2 * ii, 2 * ii + 1, 2 * i + 1);
@@ -964,7 +1033,7 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
   u1.resize(samples);
   u2.resize(samples);
   if (cap[0]) {
-    auto smoothingGroup = geo->faceIds[1];
+    auto smoothingGroup = getCapSmoothingGroup(geo, 0);
     for (unsigned i = 0; i < samples; i++) {
       u1[i] = o + (samples - 1) - i;
     }
@@ -972,7 +1041,7 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
     o += samples;
   }
   if (cap[1]) {
-    auto smoothingGroup = geo->faceIds[2];
+    auto smoothingGroup = getCapSmoothingGroup(geo, 1);
     for (unsigned i = 0; i < samples; i++) {
       u1[i] = o + i;
     }
@@ -1050,13 +1119,13 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
   assert(l == 3 * tri->vertices_n);
 
   tri->triangles_n = (shell ? 2 * samples : 0) + (cap[0] ? samples - 2 : 0) + (cap[1] ? samples - 2 : 0);
-  tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->vertices_n);
+  tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->triangles_n);
   tri->indices = (uint32_t*)arena->alloc(3 * sizeof(uint32_t)*tri->triangles_n);
 
   l = 0;
   unsigned o = 0;
   if (shell) {
-    auto smoothingGroup = geo->faceIds[0];
+    auto smoothingGroup = getShellSmootingGroup(geo);
 
     for (unsigned i = 0; i < samples; i++) {
       unsigned ii = (i + 1) % samples;
@@ -1069,17 +1138,19 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
   u1.resize(samples);
   u2.resize(samples);
   if (cap[0]) {
+    auto smoothingGroup = getCapSmoothingGroup(geo, 0);;
     for (unsigned i = 0; i < samples; i++) {
       u1[i] = o + (samples - 1) - i;
     }
-    l = tessellateCircle3(tri->indices, tri->smoothingGroups, l, u2.data(), u1.data(), geo->faceIds[1], samples);
+    l = tessellateCircle3(tri->indices, tri->smoothingGroups, l, u2.data(), u1.data(), smoothingGroup, samples);
     o += samples;
   }
   if (cap[1]) {
+    auto smoothingGroup = getCapSmoothingGroup(geo, 1);;
     for (unsigned i = 0; i < samples; i++) {
       u1[i] = o + i;
     }
-    l = tessellateCircle3(tri->indices, tri->smoothingGroups, l, u2.data(), u1.data(), geo->faceIds[2], samples);
+    l = tessellateCircle3(tri->indices, tri->smoothingGroups, l, u2.data(), u1.data(), smoothingGroup, samples);
     o += samples;
   }
   assert(l == tri->triangles_n);
@@ -1203,7 +1274,9 @@ Triangulation* TriangulationFactory::sphereBasedShape(Arena* arena, const Geomet
   tri->triangles_n = unsigned(indices.size() / 3);
   tri->indices = (uint32_t*)arena->dup(indices.data(), 3 * sizeof(uint32_t)*tri->triangles_n);
   tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->triangles_n);
-  for (unsigned i = 0; i < tri->triangles_n; i++) tri->smoothingGroups[i] = geo->faceIds[0];
+  auto smoothingGroup = getShellSmootingGroup(geo);
+
+  for (unsigned i = 0; i < tri->triangles_n; i++) tri->smoothingGroups[i] = smoothingGroup;
 
   return tri;
 }
@@ -1216,7 +1289,7 @@ Triangulation* TriangulationFactory::facetGroup(Arena* arena, const Geometry* ge
   vertices.clear();
   normals.clear();
   indices.clear();
-  smoothingGroups.clear();
+
 
   for (unsigned p = 0; p < fg.polygons_n; p++) {
     auto & poly = fg.polygons[p];
@@ -1234,7 +1307,6 @@ Triangulation* TriangulationFactory::facetGroup(Arena* arena, const Geometry* ge
       indices.push_back(vo + 0);
       indices.push_back(vo + 1);
       indices.push_back(vo + 2);
-      smoothingGroups.push_back(geo->faceIds[0] + p);
     }
     else if (poly.contours_n == 1 && poly.contours[0].vertices_n == 4) {
       auto & cont = poly.contours[0];
@@ -1279,8 +1351,6 @@ Triangulation* TriangulationFactory::facetGroup(Arena* arena, const Geometry* ge
         indices.push_back(vo + 2);
         indices.push_back(vo + 3);
       }
-      smoothingGroups.push_back(geo->faceIds[0] + p);
-      smoothingGroups.push_back(geo->faceIds[0] + p);
     }
     else  {
 
@@ -1356,7 +1426,6 @@ Triangulation* TriangulationFactory::facetGroup(Arena* arena, const Geometry* ge
               indices.push_back(ix[0] + vo);
               indices.push_back(ix[1] + vo);
               indices.push_back(ix[2] + vo);
-              smoothingGroups.push_back(geo->faceIds[0] + p);
             }
           }
         }
@@ -1364,6 +1433,12 @@ Triangulation* TriangulationFactory::facetGroup(Arena* arena, const Geometry* ge
 
       tessDeleteTess(tess);
     }
+  }
+
+
+  smoothingGroups.resize(indices.size() / 3);
+  for (auto & s : smoothingGroups) {
+    s = 0;
   }
 
   assert(vertices.size() == normals.size());

@@ -268,11 +268,24 @@ void ExportObj::geometry(struct Geometry* geometry)
         fprintf(out, "v %f %f %f\n", p.x, p.y, p.z);
         fprintf(out, "vn %f %f %f\n", n.x, n.y, n.z);
       }
-      for (size_t i = 0; i < 3 * tri->triangles_n; i += 3) {
+
+      uint32_t currentSmootingGroup = 0;
+      for (size_t i = 0; i < tri->triangles_n; i++) {
+        auto smoothingGroup = tri->smoothingGroups[i];
+        if (i == 0 || currentSmootingGroup != smoothingGroup) {
+          currentSmootingGroup = smoothingGroup;
+          if (smoothingGroup == 0) {
+            fprintf(out, "s off\n");
+          }
+          else {
+            fprintf(out, "s %u\n", smoothingGroup);
+          }
+        }
+
         fprintf(out, "f %d//%d %d//%d %d//%d\n",
-          tri->indices[i + 0] + off_v, tri->indices[i + 0] + off_n,
-          tri->indices[i + 1] + off_v, tri->indices[i + 1] + off_n,
-          tri->indices[i + 2] + off_v, tri->indices[i + 2] + off_n);
+          tri->indices[3*i + 0] + off_v, tri->indices[3*i + 0] + off_n,
+          tri->indices[3*i + 1] + off_v, tri->indices[3*i + 1] + off_n,
+          tri->indices[3*i + 2] + off_v, tri->indices[3*i + 2] + off_n);
       }
       off_v += tri->vertices_n;
       off_n += tri->vertices_n;

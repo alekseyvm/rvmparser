@@ -69,6 +69,7 @@ Connection* Store::newConnection()
 {
   auto * connection = arena.alloc<Connection>();
   insert(connections, connection);
+  numConnectionsAlloacted++;
   return connection;
 }
 

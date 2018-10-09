@@ -4,6 +4,8 @@
 class Store;
 
 struct Triangulation;
+struct Geometry;
+struct Connection;
 
 typedef void(*Logger)(unsigned level, const char* msg, ...);
 

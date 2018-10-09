@@ -34,9 +34,14 @@ public:
 private:
   Store* store;
   Logger logger;
+
+  Map definedSmoothingGroups;
+
   float tolerance = 0.f / 0.f;
   unsigned minSamples = 3;
   unsigned maxSamples = 100;
+
+  uint32_t nextSmootingGroup = 1;
 
   std::vector<float> vertices;
   std::vector<Vec3f> vec3;
@@ -50,6 +55,15 @@ private:
   std::vector<float> t0;
   std::vector<float> t1;
   std::vector<float> t2;
+
+  // Get smoothing group of shell
+  uint32_t getShellSmootingGroup(const Geometry* geo);
+
+  uint32_t getCapSmoothingGroup(const Geometry* geo, uint32_t capIx) { return nextSmootingGroup++; }
+
+  void growSmoothingGroup(const Geometry* seed, uint32_t smoothingGroup);
+
+  Buffer<const Geometry*> grow;
 
 };
 

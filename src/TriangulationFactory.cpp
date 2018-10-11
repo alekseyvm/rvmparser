@@ -932,42 +932,63 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
   }
 
   tri->vertices_n = (shell ? 2 * samples : 0) + (cap[0] ? samples : 0) + (cap[1] ? samples : 0);
-  tri->vertices = (float*)arena->alloc(3 * sizeof(float)*tri->vertices_n);
-  tri->normals = (float*)arena->alloc(3 * sizeof(float)*tri->vertices_n);
+  tri->vertices = (float*)arena->alloc(sizeof(Vec3f)*tri->vertices_n);
+  tri->texCoords = (float*)arena->alloc(sizeof(Vec2f)*tri->vertices_n);
+  tri->normals = (float*)arena->alloc(sizeof(Vec3f)*tri->vertices_n);
 
   tri->triangles_n = (shell ? 2 * samples : 0) + (cap[0] ? samples - 2 : 0) + (cap[1] ? samples - 2 : 0);
   tri->indices = (uint32_t*)arena->alloc(3 * sizeof(uint32_t)*tri->triangles_n);
 
-  t0.resize(2 * samples);
+  cosSin.resize(samples);
   for (unsigned i = 0; i < samples; i++) {
-    t0[2 * i + 0] = std::cos((twopi / samples)*i + geo->sampleStartAngle);
-    t0[2 * i + 1] = std::sin((twopi / samples)*i + geo->sampleStartAngle);
+    cosSin[i] = Vec2f(std::cos((twopi / samples)*i + geo->sampleStartAngle),
+                      std::sin((twopi / samples)*i + geo->sampleStartAngle));
   }
-  t1.resize(2 * samples);
-  for (unsigned i = 0; i < 2 * samples; i++) {
-    t1[i] = cy.radius * t0[i];
+  cosSinRadius.resize(samples);
+  for (unsigned i = 0; i < samples; i++) {
+    cosSinRadius[i] = cy.radius * cosSin[i];
   }
+
+  auto distanceA = 0.f;
+  auto distanceB = scale * cy.height;
+  auto circumferenceScale = (scale * twopi * cy.radius)/samples;
 
   float h2 = 0.5f*cy.height;
   unsigned l = 0;
 
+  auto * V = (Vec3f*)tri->vertices;
+  auto * N = (Vec3f*)tri->normals;
+  auto * T = (Vec2f*)tri->texCoords;
   if (shell) {
     for (unsigned i = 0; i < samples; i++) {
-      l = vertex(tri->normals, tri->vertices, l, t0[2 * i + 0], t0[2 * i + 1], 0, t1[2 * i + 0], t1[2 * i + 1], -h2);
-      l = vertex(tri->normals, tri->vertices, l, t0[2 * i + 0], t0[2 * i + 1], 0, t1[2 * i + 0], t1[2 * i + 1], h2);
+      V[l] = Vec3f(cosSinRadius[i], -h2);
+      N[l] = Vec3f(cosSin[i], 0);
+      T[l] = Vec2f(circumferenceScale*i, distanceA);
+      l++;
+
+      V[l] = Vec3f(cosSinRadius[i], h2);
+      N[l] = Vec3f(cosSin[i], 0);
+      T[l] = Vec2f(circumferenceScale*i, distanceB);
+      l++;
     }
   }
   if (cap[0]) {
     for (unsigned i = 0; cap[0] && i < samples; i++) {
-      l = vertex(tri->normals, tri->vertices, l, 0, 0, -1, t1[2 * i + 0], t1[2 * i + 1], -h2);
+      V[l] = Vec3f(cosSinRadius[i], -h2);
+      N[l] = Vec3f(0, 0, -1);
+      T[l] = Vec2f(circumferenceScale*i, distanceA);
+      l++;
     }
   }
   if (cap[1]) {
     for (unsigned i = 0; i < samples; i++) {
-      l = vertex(tri->normals, tri->vertices, l, 0, 0, 1, t1[2 * i + 0], t1[2 * i + 1], h2);
+      V[l] = Vec3f(cosSinRadius[i], h2);
+      N[l] = Vec3f(0, 0, 1);
+      T[l] = Vec2f(circumferenceScale*i, distanceB);
+      l++;
     }
   }
-  assert(l == 3 * tri->vertices_n);
+  assert(l == tri->vertices_n);
 
   l = 0;
   unsigned o = 0;

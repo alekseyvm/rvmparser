@@ -246,6 +246,19 @@ namespace {
     return t + 2;
   }
 
+  uint32_t* quadIndices_(uint32_t* indices, unsigned o, unsigned v0, unsigned v1, unsigned v2, unsigned v3)
+  {
+    *indices++ = o + v0;
+    *indices++ = o + v1;
+    *indices++ = o + v2;
+
+    *indices++ = o + v2;
+    *indices++ = o + v3;
+    *indices++ = o + v0;
+
+    return indices;
+  }
+
 
   unsigned vertex(float* normals, float* vertices, unsigned l, float* n, float* p)
   {
@@ -302,6 +315,20 @@ namespace {
       std::swap(tmp, src);
     }
     return t;
+  }
+
+  
+  uint32_t* tessellateCircle_(uint32_t* I, unsigned offset, unsigned flip,  unsigned N)
+  {
+    auto I0 = I;
+    for (unsigned step = 2; step < N; step = 2 * step) {
+      for (unsigned i = 0; i + step / 2 < N; i += step) {
+        *I++ = offset + i + (flip ? 0 : step / 2);
+        *I++ = offset + i + (flip ? step / 2 : 0);
+        *I++ = offset + (i + step < N ? i + step : 0);
+      }
+    }
+    return I;
   }
 
 
@@ -944,11 +971,13 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
   unsigned segments = sagittaBasedSegmentCount(twopi, cy.radius, scale);
   unsigned samples = segments;  // Assumed to be closed
 
+
   auto * tri = arena->alloc<Triangulation>();
   tri->error = sagittaBasedError(twopi, cy.radius, scale, segments);
 
-  bool shell = true;
+  unsigned shell = 1;
   bool cap[2] = { true, true };
+  unsigned caps = 0;
   for (unsigned i = 0; i < 2; i++) {
     auto * con = geo->connections[i];
     if (con && con->flags == Connection::Flags::HasCircularSide) {
@@ -957,6 +986,7 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
         discardedCaps++;
       }
     }
+    if (cap[i]) caps++;
   }
 
   cosSin.resize(samples);
@@ -977,8 +1007,8 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
     tri->texCoords = nullptr;
     break;
   case PipeCoords:
-    tri->vertices_n = 2 * (samples + 1) * ((shell ? 1 : 0) + (cap[0] ? 1 : 0) + (cap[1] ? 1 : 0));
-    tri->triangles_n = samples * ((shell ? 2 : 0) + (cap[0] ? 1 : 0) + (cap[1] ? 1 : 0));
+    tri->vertices_n = 2 * (samples + 1) * shell + samples * caps;
+    tri->triangles_n = 2 * samples*shell + (samples - 2)*caps;
     tri->texCoords = (float*)arena->alloc(sizeof(Vec2f)*tri->vertices_n);
     break;
   default:
@@ -990,46 +1020,39 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
 
   float h2 = 0.5f*cy.height;
   float h[2] = { -h2, h2 };
-  unsigned v = 0;
-  unsigned t = 0;
   unsigned o = 0;
   auto * V = (Vec3f*)tri->vertices;
   auto * N = (Vec3f*)tri->normals;
   auto * T = (Vec2f*)tri->texCoords;
+  auto * I = tri->indices;
   switch (parameterization)
   {
   case None: {
     if (shell) {
       for (unsigned i = 0; i < samples; i++) {
         for (unsigned k = 0; k < 2; k++) {
-          V[v] = Vec3f(cosSinRadius[i], h[k]);
-          N[v] = Vec3f(cosSin[i], 0);
-          v++;
+          *V++ = Vec3f(cosSinRadius[i], h[k]);
+          *N++ = Vec3f(cosSin[i], 0);
         }
       }
     }
     for (unsigned k = 0; k < 2; k++) {
       if (cap[k] == false) continue;
       for (unsigned i = 0; i < samples; i++) {
-        V[v] = Vec3f(cosSinRadius[i], h[k]);
-        N[v] = Vec3f(0, 0, -1);
-        v++;
+        *V++ = Vec3f(cosSinRadius[i], h[k]);
+        *N++ = Vec3f(0, 0, -1);
       }
     }
     if (shell) {
       for (unsigned i = 0; i < samples; i++) {
         unsigned ii = (i + 1) % samples;
-        t = quadIndices3(tri->indices, t, 0, 2 * i, 2 * ii, 2 * ii + 1, 2 * i + 1);
+        I = quadIndices_(I, o, 2 * i, 2 * ii, 2 * ii + 1, 2 * i + 1);
       }
       o += 2 * samples;
     }
-
-    u1.resize(samples);
-    u2.resize(samples);
     for (unsigned k = 0; k < 2; k++) {
       if (cap[k] == false) continue;
-      for (unsigned i = 0; i < samples; i++) u1[i] = o + (k == 0 ? (samples - 1) - i : i);
-      t = tessellateCircle3(tri->indices, t, u2.data(), u1.data(), samples);
+      I = tessellateCircle_(I, o, k, samples);
       o += samples;
     }
     break;
@@ -1041,70 +1064,47 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
     if (shell) {
       for (unsigned i = 0; i < samples; i++) {
         for (unsigned k = 0; k < 2; k++) {
-          V[v] = Vec3f(cosSinRadius[i], h[k]);
-          N[v] = Vec3f(cosSin[i], 0);
-          T[v] = Vec2f(circumferenceScale*i, distances[k]);
-          v++;
+          *V++ = Vec3f(cosSinRadius[i], h[k]);
+          *N++ = Vec3f(cosSin[i], 0);
+          *T++ = Vec2f(circumferenceScale*i, distances[k]);
         }
       }
       for (unsigned k = 0; k < 2; k++) {// clip texture seam.
-        V[v] = V[v - 2 * samples];
-        N[v] = N[v - 2 * samples];
-        T[v] = Vec2f(circumference, distances[k]);
-        v++;  
+        *V++ = Vec3f(cosSinRadius[0], h[k]);
+        *N++ = Vec3f(cosSin[0], 0);
+        *T++ = Vec2f(circumference, distances[k]);
       }
     }
     for (unsigned j = 0; j < 2; j++) {
       if (cap[j] == false) continue;
       for (unsigned i = 0; i < samples; i++) {
-        for (unsigned k = 0; k < 2; k++) {
-          auto r = k ? Vec2f(0.f) : cosSinRadius[i];
-          V[v] = Vec3f(r.x, r.y, h[j]);
-          N[v] = Vec3f(0, 0, -1);
-          T[v] = Vec2f(circumferenceScale*(i + (k ? 0.5f : 0.f)), distances[j]);
-          v++;
-        }
-      }
-      for (unsigned k = 0; k < 2; k++) {
-        V[v] = V[v - 2 * samples];
-        N[v] = N[v - 2 * samples];
-        T[v] = Vec2f(circumference, distances[j]);
-        v++;
+        *V++ = Vec3f(cosSinRadius[i], h[j]);
+        *N++ = Vec3f(0, 0, j == 0 ? -1 : 1);
+        *T++ = scale * cosSinRadius[i];
       }
     }
-
     if (shell) {
       for (unsigned i = 0; i < samples; i++) {
         unsigned ii = (i + 1);
-        t = quadIndices3(tri->indices, t, 0, 2 * i, 2 * ii, 2 * ii + 1, 2 * i + 1);
+        I = quadIndices_(I, o, 2 * i, 2 * ii, 2 * ii + 1, 2 * i + 1);
       }
       o += 2 * (samples + 1);
     }
-    u1.resize(samples);
-    u2.resize(samples);
     for (unsigned k = 0; k < 2; k++) {
       if (cap[k] == false) continue;
-
-      for (unsigned i = 0; i < samples; i++) {
-        tri->indices[3 * t + 0] = o + 2 * (i + ((~k) & 1));
-        tri->indices[3 * t + 1] = o + 2 * (i + k);
-        tri->indices[3 * t + 2] = o + 2 * i + 1;
-        t++;
-      }
-      o += 2 * (samples + 1);
-
-      //for (unsigned i = 0; i < samples; i++) u1[i] = o + (k == 0 ? (samples - 1) - i : i);
-      //t = tessellateCircle3(tri->indices, t, u2.data(), u1.data(), samples);
-      //o += samples + 1;
+      I = tessellateCircle_(I, o, k, samples);
+      o += samples;
     }
+    assert((T - (Vec2f*)tri->texCoords) == tri->vertices_n);
     break;
   }
   default:
     assert(false);
     break;
   }
-  assert(v == tri->vertices_n);
-  assert(t == tri->triangles_n);
+  assert((V - (Vec3f*)tri->vertices) == tri->vertices_n);
+  assert((N - (Vec3f*)tri->normals) == tri->vertices_n);
+  assert((I -tri->indices) == 3 * tri->triangles_n);
   assert(o == tri->vertices_n);
   return tri;
 }

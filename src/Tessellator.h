@@ -59,6 +59,9 @@ private:
   std::vector<Vec2f> cosSin;
   std::vector<Vec2f> cosSinRadius;
 
+  std::vector<Vec2f> cosSinMajor;
+  std::vector<Vec2f> cosSinRadiusMajor;
+
 };
 
 class Tessellator : public StoreVisitor

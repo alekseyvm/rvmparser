@@ -750,6 +750,7 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
   auto * N = (Vec3f*)tri->normals;
   auto * T = (Vec2f*)tri->texCoords;
   auto * I = tri->indices;
+  unsigned o = 0;
 
   if (shell) {
     for (unsigned u = 0; u < samplesMajor; u++) {
@@ -772,50 +773,35 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
       *N++ = Vec3f(-cosSinMajor[m].y, cosSinMajor[m].x, 0.f);
     }
   }
-  assert((V - (Vec3f*)tri->vertices) == tri->vertices_n);
-  assert((N - (Vec3f*)tri->normals) == tri->vertices_n);
-
-  // generate indices
-  unsigned l = 0;
-  unsigned o = 0;
   if (shell) {
     for (unsigned u = 0; u + 1 < samplesMajor; u++) {
       for (unsigned v = 0; v + 1 < samplesMinor; v++) {
-        tri->indices[l++] = samplesMinor * (u + 0) + (v + 0);
-        tri->indices[l++] = samplesMinor * (u + 1) + (v + 0);
-        tri->indices[l++] = samplesMinor * (u + 1) + (v + 1);
-
-        tri->indices[l++] = samplesMinor * (u + 1) + (v + 1);
-        tri->indices[l++] = samplesMinor * (u + 0) + (v + 1);
-        tri->indices[l++] = samplesMinor * (u + 0) + (v + 0);
+        I = quadIndices_(I, o,
+                         samplesMinor * (u + 0) + (v + 0),
+                         samplesMinor * (u + 1) + (v + 0),
+                         samplesMinor * (u + 1) + (v + 1),
+                         samplesMinor * (u + 0) + (v + 1));
       }
-      tri->indices[l++] = samplesMinor * (u + 0) + (samplesMinor - 1);
-      tri->indices[l++] = samplesMinor * (u + 1) + (samplesMinor - 1);
-      tri->indices[l++] = samplesMinor * (u + 1) + 0;
-      tri->indices[l++] = samplesMinor * (u + 1) + 0;
-      tri->indices[l++] = samplesMinor * (u + 0) + 0;
-      tri->indices[l++] = samplesMinor * (u + 0) + (samplesMinor - 1);
+      I = quadIndices_(I, o,
+                       samplesMinor * (u + 0) + (samplesMinor - 1),
+                       samplesMinor * (u + 1) + (samplesMinor - 1),
+                       samplesMinor * (u + 1) + 0,
+                       samplesMinor * (u + 0) + 0);
     }
     o += samplesMajor * samplesMinor;
   }
-
-  u1.resize(samplesMinor);
-  u2.resize(samplesMinor);
   if (cap[0]) {
-    for (unsigned i = 0; i < samplesMinor; i++) {
-      u1[i] = o + i;
-    }
-    l = tessellateCircle(tri->indices, l, u2.data(), u1.data(), samplesMinor);
+    I = tessellateCircle_(I, o, 1, samplesMinor);
     o += samplesMinor;
   }
   if (cap[1]) {
-    for (unsigned i = 0; i < samplesMinor; i++) {
-      u1[i] = o + (samplesMinor - 1) - i;
-    }
-    l = tessellateCircle(tri->indices, l, u2.data(), u1.data(), samplesMinor);
+    I = tessellateCircle_(I, o, 0, samplesMinor);
     o += samplesMinor;
   }
-  assert(l == 3*tri->triangles_n);
+
+  assert((V - (Vec3f*)tri->vertices) == tri->vertices_n);
+  assert((N - (Vec3f*)tri->normals) == tri->vertices_n);
+  assert((I - tri->indices) == 3 * tri->triangles_n);
   assert(o == tri->vertices_n);
 
   return tri;

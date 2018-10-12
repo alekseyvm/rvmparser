@@ -331,6 +331,16 @@ namespace {
     return I;
   }
 
+  Vec2f encodeCylindricalTexCoord(const float unitCircum, const float distance, const float circumference)
+  {
+    return Vec2f(unitCircum, distance);
+  }
+
+  // tex in circle on origin with radius 1.
+  Vec2f encodeCircularTexCoord(const Vec2f& tex, const float radius)
+  {
+    return radius * tex;
+  }
 
 
 }
@@ -695,13 +705,8 @@ Triangulation* TriangulationFactory::rectangularTorus(Arena* arena, const Geomet
 }
 
 
-Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry* geo, float scale)
+Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry* geo, float scale, bool texcoords)
 {
-  //if (cullTiny && ct.radius*scale < tolerance) {
-  //  tri->error = ct.radius*scale;
-  //  return;
-  //}
-
   auto & ct = geo->circularTorus;
   unsigned segments_l = sagittaBasedSegmentCount(ct.angle, ct.offset + ct.radius, scale); // large radius, toroidal direction
   unsigned segments_s = sagittaBasedSegmentCount(twopi, ct.radius, scale); // small radius, poloidal direction
@@ -710,8 +715,8 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
   tri->error = std::max(sagittaBasedError(ct.angle, ct.offset + ct.radius, scale, segments_l),
                         sagittaBasedError(twopi, ct.radius, scale, segments_s));
 
-  unsigned samplesMajor = 3*segments_l + 1;  // Assumed to be open, add extra sample
-  unsigned samplesMinor = 3*segments_s;      // Assumed to be closed
+  unsigned samplesMajor = segments_l + 1;  // Assumed to be open, add extra sample
+  unsigned samplesMinor = segments_s;      // Assumed to be closed
 
   unsigned shell = 1;
   bool cap[2] = { true, true };
@@ -720,7 +725,7 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
     auto * con = geo->connections[i];
     if (con && con->flags == Connection::Flags::HasCircularSide) {
       if (doInterfacesMatch(geo, con)) {
-        //cap[i] = false;
+        cap[i] = false;
         discardedCaps++;
       }
     }
@@ -740,7 +745,15 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
   }
 
 
-  tri->vertices_n = samplesMinor * (samplesMajor * shell + caps);
+  if (texcoords == false) {
+    tri->vertices_n = samplesMinor * (samplesMajor * shell + caps);
+    tri->texCoords = nullptr;
+  }
+  else {
+    tri->vertices_n = (samplesMinor + 1)*samplesMajor * shell + samplesMinor * caps;
+    tri->texCoords = (float*)arena->alloc(sizeof(Vec2f)*tri->vertices_n);
+  }
+
   tri->vertices = (float*)arena->alloc(3 * sizeof(float)*tri->vertices_n);
   tri->normals = (float*)arena->alloc(3 * sizeof(float)*tri->vertices_n);
   tri->triangles_n = 2 * (samplesMajor - 1)*samplesMinor * shell + (samplesMinor - 2)*caps;
@@ -752,51 +765,110 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
   auto * I = tri->indices;
   unsigned o = 0;
 
-  if (shell) {
-    for (unsigned u = 0; u < samplesMajor; u++) {
+  if (texcoords == false) {
+    if (shell) {
+      for (unsigned u = 0; u < samplesMajor; u++) {
+        for (unsigned v = 0; v < samplesMinor; v++) {
+          *V++ = Vec3f((ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[u], ct.radius * cosSin[v].y);
+          *N++ = Vec3f(cosSin[v].x * cosSinMajor[u], cosSin[v].y);
+        }
+      }
+    }
+    if (cap[0]) {
       for (unsigned v = 0; v < samplesMinor; v++) {
-        *V++ = Vec3f((ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[u], ct.radius * cosSin[v].y);
-        *N++ = Vec3f(cosSin[v].x * cosSinMajor[u], cosSin[v].y);
+        *V++ = Vec3f((ct.radius*cosSin[v].x + ct.offset) * cosSinMajor[0], ct.radius*cosSin[v].y);
+        *N++ = Vec3f(0, -1, 0);
       }
     }
-  }
-  if (cap[0]) {
-    for (unsigned v = 0; v < samplesMinor; v++) {
-      *V++ = Vec3f((ct.radius*cosSin[v].x + ct.offset) * cosSinMajor[0] , ct.radius*cosSin[v].y);
-      *N++ = Vec3f(0, -1, 0);
+    if (cap[1]) {
+      unsigned m = samplesMajor - 1;
+      for (unsigned v = 0; v < samplesMinor; v++) {
+        *V++ = Vec3f((ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[m], ct.radius * cosSin[v].y);
+        *N++ = Vec3f(-cosSinMajor[m].y, cosSinMajor[m].x, 0.f);
+      }
     }
-  }
-  if (cap[1]) {
-    unsigned m = samplesMajor - 1;
-    for (unsigned v = 0; v < samplesMinor; v++) {
-      *V++ = Vec3f((ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[m], ct.radius * cosSin[v].y);
-      *N++ = Vec3f(-cosSinMajor[m].y, cosSinMajor[m].x, 0.f);
-    }
-  }
-  if (shell) {
-    for (unsigned u = 0; u + 1 < samplesMajor; u++) {
-      for (unsigned v = 0; v + 1 < samplesMinor; v++) {
+    if (shell) {
+      for (unsigned u = 0; u + 1 < samplesMajor; u++) {
+        for (unsigned v = 0; v + 1 < samplesMinor; v++) {
+          I = quadIndices_(I, o,
+                           samplesMinor * (u + 0) + (v + 0),
+                           samplesMinor * (u + 1) + (v + 0),
+                           samplesMinor * (u + 1) + (v + 1),
+                           samplesMinor * (u + 0) + (v + 1));
+        }
         I = quadIndices_(I, o,
-                         samplesMinor * (u + 0) + (v + 0),
-                         samplesMinor * (u + 1) + (v + 0),
-                         samplesMinor * (u + 1) + (v + 1),
-                         samplesMinor * (u + 0) + (v + 1));
+                         samplesMinor * (u + 0) + (samplesMinor - 1),
+                         samplesMinor * (u + 1) + (samplesMinor - 1),
+                         samplesMinor * (u + 1) + 0,
+                         samplesMinor * (u + 0) + 0);
       }
-      I = quadIndices_(I, o,
-                       samplesMinor * (u + 0) + (samplesMinor - 1),
-                       samplesMinor * (u + 1) + (samplesMinor - 1),
-                       samplesMinor * (u + 1) + 0,
-                       samplesMinor * (u + 0) + 0);
+      o += samplesMajor * samplesMinor;
     }
-    o += samplesMajor * samplesMinor;
+    if (cap[0]) {
+      I = tessellateCircle_(I, o, 1, samplesMinor);
+      o += samplesMinor;
+    }
+    if (cap[1]) {
+      I = tessellateCircle_(I, o, 0, samplesMinor);
+      o += samplesMinor;
+    }
   }
-  if (cap[0]) {
-    I = tessellateCircle_(I, o, 1, samplesMinor);
-    o += samplesMinor;
-  }
-  if (cap[1]) {
-    I = tessellateCircle_(I, o, 0, samplesMinor);
-    o += samplesMinor;
+  else {
+    const float distanceA = 0.f;
+    const float distanceB = scale * ct.offset * ct.angle ;
+    const auto circumference = scale * twopi * ct.radius;
+    if (shell) {
+      const auto uScale = 1.f / samplesMajor;
+      const auto vScale = 1.f / samplesMinor;
+      for (unsigned u = 0; u < samplesMajor; u++) {
+        const auto un = uScale * u;
+        const auto distance = (1.f - un)*distanceA + un * distanceB;
+        for (unsigned v = 0; v < samplesMinor; v++) {
+          *V++ = Vec3f((ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[u], ct.radius * cosSin[v].y);
+          *N++ = Vec3f(cosSin[v].x * cosSinMajor[u], cosSin[v].y);
+          *T++ = encodeCylindricalTexCoord(vScale * v, distance, circumference);
+        }
+        *V++ = Vec3f((ct.radius * cosSin[0].x + ct.offset) * cosSinMajor[u], ct.radius * cosSin[0].y);
+        *N++ = Vec3f(cosSin[0].x * cosSinMajor[u], cosSin[0].y);
+        *T++ = encodeCylindricalTexCoord(1.f, distance, circumference);
+      }
+    }
+    if (cap[0]) {
+      for (unsigned v = 0; v < samplesMinor; v++) {
+        *V++ = Vec3f((ct.radius*cosSin[v].x + ct.offset) * cosSinMajor[0], ct.radius*cosSin[v].y);
+        *N++ = Vec3f(0, -1, 0);
+        *T++ = encodeCircularTexCoord(cosSin[v], scale * ct.radius);
+      }
+    }
+    if (cap[1]) {
+      unsigned m = samplesMajor - 1;
+      for (unsigned v = 0; v < samplesMinor; v++) {
+        *V++ = Vec3f((ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[m], ct.radius * cosSin[v].y);
+        *N++ = Vec3f(-cosSinMajor[m].y, cosSinMajor[m].x, 0.f);
+        *T++ = encodeCircularTexCoord(cosSin[v], scale * ct.radius);
+      }
+    }
+    if (shell) {
+      for (unsigned u = 0; u + 1 < samplesMajor; u++) {
+        for (unsigned v = 0; v < samplesMinor; v++) {
+          I = quadIndices_(I, o,
+                           (samplesMinor + 1) * (u + 0) + (v + 0),
+                           (samplesMinor + 1) * (u + 1) + (v + 0),
+                           (samplesMinor + 1) * (u + 1) + (v + 1),
+                           (samplesMinor + 1) * (u + 0) + (v + 1));
+        }
+      }
+      o += samplesMajor * (samplesMinor + 1);
+    }
+    if (cap[0]) {
+      I = tessellateCircle_(I, o, 1, samplesMinor);
+      o += samplesMinor;
+    }
+    if (cap[1]) {
+      I = tessellateCircle_(I, o, 0, samplesMinor);
+      o += samplesMinor;
+    }
+
   }
 
   assert((V - (Vec3f*)tri->vertices) == tri->vertices_n);
@@ -943,7 +1015,7 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
 }
 
 
-Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo, float scale, Parameterization parameterization)
+Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo, float scale, bool texcoords)
 {
   const auto & cy = geo->cylinder;
   unsigned segments = sagittaBasedSegmentCount(twopi, cy.radius, scale);
@@ -977,21 +1049,17 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
     cosSinRadius[i] = cy.radius * cosSin[i];
   }
 
-  switch (parameterization)
-  {
-  case None:
+  if (texcoords == false) {
     tri->vertices_n = samples * ((shell ? 2 : 0) + (cap[0] ? 1 : 0) + (cap[1] ? 1 : 0));
     tri->triangles_n = (shell ? 2 * samples : 0) + (cap[0] ? samples - 2 : 0) + (cap[1] ? samples - 2 : 0);
     tri->texCoords = nullptr;
-    break;
-  case PipeCoords:
+  }
+  else {
     tri->vertices_n = 2 * (samples + 1) * shell + samples * caps;
     tri->triangles_n = 2 * samples*shell + (samples - 2)*caps;
     tri->texCoords = (float*)arena->alloc(sizeof(Vec2f)*tri->vertices_n);
-    break;
-  default:
-    break;
   }
+
   tri->vertices = (float*)arena->alloc(sizeof(Vec3f)*tri->vertices_n);
   tri->normals = (float*)arena->alloc(sizeof(Vec3f)*tri->vertices_n);
   tri->indices = (uint32_t*)arena->alloc(3 * sizeof(uint32_t)*tri->triangles_n);
@@ -1003,9 +1071,8 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
   auto * N = (Vec3f*)tri->normals;
   auto * T = (Vec2f*)tri->texCoords;
   auto * I = tri->indices;
-  switch (parameterization)
-  {
-  case None: {
+
+  if (texcoords == false) {
     if (shell) {
       for (unsigned i = 0; i < samples; i++) {
         for (unsigned k = 0; k < 2; k++) {
@@ -1033,24 +1100,23 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
       I = tessellateCircle_(I, o, k, samples);
       o += samples;
     }
-    break;
   }
-  case PipeCoords: {
+  else {
     auto circumference = scale * twopi * cy.radius;
-    auto circumferenceScale = circumference / samples;
+    auto iScale = circumference / samples;
     float distances[2] = { 0.f, scale * cy.height };
     if (shell) {
       for (unsigned i = 0; i < samples; i++) {
         for (unsigned k = 0; k < 2; k++) {
           *V++ = Vec3f(cosSinRadius[i], h[k]);
           *N++ = Vec3f(cosSin[i], 0);
-          *T++ = Vec2f(circumferenceScale*i, distances[k]);
+          *T++ = encodeCylindricalTexCoord(iScale * i, distances[k], circumference);
         }
       }
       for (unsigned k = 0; k < 2; k++) {// clip texture seam.
         *V++ = Vec3f(cosSinRadius[0], h[k]);
         *N++ = Vec3f(cosSin[0], 0);
-        *T++ = Vec2f(circumference, distances[k]);
+        *T++ = encodeCylindricalTexCoord(1.f, distances[k], circumference);
       }
     }
     for (unsigned j = 0; j < 2; j++) {
@@ -1058,7 +1124,7 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
       for (unsigned i = 0; i < samples; i++) {
         *V++ = Vec3f(cosSinRadius[i], h[j]);
         *N++ = Vec3f(0, 0, j == 0 ? -1.f : 1.f);
-        *T++ = scale * cosSinRadius[i];
+        *T++ = encodeCircularTexCoord(cosSin[i], scale * cy.radius);
       }
     }
     if (shell) {
@@ -1074,12 +1140,8 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
       o += samples;
     }
     assert((T - (Vec2f*)tri->texCoords) == tri->vertices_n);
-    break;
   }
-  default:
-    assert(false);
-    break;
-  }
+
   assert((V - (Vec3f*)tri->vertices) == tri->vertices_n);
   assert((N - (Vec3f*)tri->normals) == tri->vertices_n);
   assert((I -tri->indices) == 3 * tri->triangles_n);

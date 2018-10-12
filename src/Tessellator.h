@@ -4,12 +4,6 @@
 #include "StoreVisitor.h"
 #include "LinAlg.h"
 
-enum Parameterization
-{
-  None,
-  PipeCoords
-};
-
 class TriangulationFactory
 {
 public:
@@ -25,11 +19,11 @@ public:
 
   Triangulation* rectangularTorus(Arena* arena, const Geometry* geo, float scale);
 
-  Triangulation* circularTorus(Arena* arena, const Geometry* geo, float scale);
+  Triangulation* circularTorus(Arena* arena, const Geometry* geo, float scale, bool texcoords = true);
 
   Triangulation* snout(Arena* arena, const  Geometry* geo, float scale);
 
-  Triangulation* cylinder(Arena* arena, const Geometry* geo, float scale, Parameterization parameterization = PipeCoords);
+  Triangulation* cylinder(Arena* arena, const Geometry* geo, float scale, bool texcoords = true);
 
   Triangulation* facetGroup(Arena* arena, const Geometry* geo, float scale);
 

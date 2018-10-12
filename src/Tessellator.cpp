@@ -125,15 +125,15 @@ void Tessellator::geometry(Geometry* geo)
   Triangulation* tri = nullptr;
   switch (geo->kind) {
   case Geometry::Kind::Pyramid:
-    //tri = factory->pyramid(&store->arenaTriangulation, geo, scale);
+    tri = factory->pyramid(&store->arenaTriangulation, geo, scale);
     break;
 
   case Geometry::Kind::Box:
-    //tri = factory->box(&store->arenaTriangulation, geo, scale);
+    tri = factory->box(&store->arenaTriangulation, geo, scale);
     break;
 
   case Geometry::Kind::RectangularTorus:
-    //tri = factory->rectangularTorus(&store->arenaTriangulation, geo, scale);
+    tri = factory->rectangularTorus(&store->arenaTriangulation, geo, scale);
     break;
     
   case Geometry::Kind::CircularTorus:
@@ -141,7 +141,7 @@ void Tessellator::geometry(Geometry* geo)
     break;
 
   case Geometry::Kind::EllipticalDish:
-    //tri = factory->sphereBasedShape(&store->arenaTriangulation, geo, 0.5f*geo->ellipticalDish.diameter, half_pi, 0.f, 2.f * geo->ellipticalDish.radius / geo->ellipticalDish.diameter, scale);
+    tri = factory->sphereBasedShape(&store->arenaTriangulation, geo, 0.5f*geo->ellipticalDish.diameter, half_pi, 0.f, 2.f * geo->ellipticalDish.radius / geo->ellipticalDish.diameter, scale);
     break;
 
   case Geometry::Kind::SphericalDish: {
@@ -150,23 +150,23 @@ void Tessellator::geometry(Geometry* geo)
     float r_sphere = (r_circ*r_circ + h * h) / (2.f*h);
     float arc = asin(r_circ / r_sphere);
     if (r_circ < h) { arc = pi - arc; }
-    //tri = factory->sphereBasedShape(&store->arenaTriangulation, geo, r_sphere, arc, h - r_sphere, 1.f, scale);
+    tri = factory->sphereBasedShape(&store->arenaTriangulation, geo, r_sphere, arc, h - r_sphere, 1.f, scale);
     break;
   }
   case Geometry::Kind::Snout:
-    //tri = factory->snout(&store->arenaTriangulation, geo, scale);
+    tri = factory->snout(&store->arenaTriangulation, geo, scale);
     break;
 
   case Geometry::Kind::Cylinder:
-    //tri = factory->cylinder(&store->arenaTriangulation, geo, scale);
+    tri = factory->cylinder(&store->arenaTriangulation, geo, scale);
     break;
 
   case Geometry::Kind::Sphere:
-    //tri = factory->sphereBasedShape(&store->arenaTriangulation, geo, 0.5f*geo->sphere.diameter, pi, 0.f, 1.f, scale);
+    tri = factory->sphereBasedShape(&store->arenaTriangulation, geo, 0.5f*geo->sphere.diameter, pi, 0.f, 1.f, scale);
     break;
 
   case Geometry::Kind::FacetGroup:
-    //tri = factory->facetGroup(&store->arenaTriangulation, geo, scale);
+    tri = factory->facetGroup(&store->arenaTriangulation, geo, scale);
     break;
 
   case Geometry::Kind::Line:  // Handled at start of function.

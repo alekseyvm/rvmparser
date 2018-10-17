@@ -7,7 +7,7 @@
 class TriangulationFactory
 {
 public:
-  TriangulationFactory(Store* store, Logger logger, float tolerance, unsigned minSamples, unsigned maxSamples);
+  TriangulationFactory(Store* store, Logger logger, float tolerance, unsigned minSamples, unsigned maxSamples, bool texcoords);
 
   unsigned sagittaBasedSegmentCount(float arc, float radius, float scale);
 
@@ -19,11 +19,11 @@ public:
 
   Triangulation* rectangularTorus(Arena* arena, const Geometry* geo, float scale);
 
-  Triangulation* circularTorus(Arena* arena, const Geometry* geo, float scale, bool texcoords = true);
+  Triangulation* circularTorus(Arena* arena, const Geometry* geo, float scale);
 
   Triangulation* snout(Arena* arena, const  Geometry* geo, float scale);
 
-  Triangulation* cylinder(Arena* arena, const Geometry* geo, float scale, bool texcoords = true);
+  Triangulation* cylinder(Arena* arena, const Geometry* geo, float scale);
 
   Triangulation* facetGroup(Arena* arena, const Geometry* geo, float scale);
 
@@ -37,6 +37,7 @@ private:
   float tolerance = 0.f / 0.f;
   unsigned minSamples = 3;
   unsigned maxSamples = 100;
+  bool texcoords = false;
 
   std::vector<float> vertices;
   std::vector<Vec3f> vec3;
@@ -63,7 +64,7 @@ class Tessellator : public StoreVisitor
 public:
   Tessellator() = delete;
   Tessellator(const Tessellator&) = delete;
-  Tessellator(Logger logger, float tolerance, float cullLeafThreshold, float cullGeometryThreshold, unsigned maxSamples);
+  Tessellator(Logger logger, float tolerance, float cullLeafThreshold, float cullGeometryThreshold, unsigned maxSamples, bool texcoords);
 
   Tessellator& operator=(const Tessellator&) = delete;
 
@@ -105,10 +106,11 @@ protected:
   unsigned maxSamples = 100;
   float cullLeafThresholdScaled = 0.f / 0.f;
   float cullGeometryThresholdScaled = 0.f / 0.f;
+  bool texcoords = false;
+
   Arena arena;
   TriangulationFactory* factory = nullptr;
   Logger logger;
-
   Store * store = nullptr;
 
   struct {

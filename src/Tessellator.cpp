@@ -16,12 +16,13 @@ namespace {
 
 }
 
-Tessellator::Tessellator(Logger logger, float tolerance, float cullLeafThreshold, float cullGeometryThreshold, unsigned maxSamples) :
+Tessellator::Tessellator(Logger logger, float tolerance, float cullLeafThreshold, float cullGeometryThreshold, unsigned maxSamples, bool texcoords) :
   logger(logger),
   tolerance(tolerance),
   maxSamples(maxSamples),
   cullLeafThresholdScaled(tolerance * cullLeafThreshold),
-  cullGeometryThresholdScaled(tolerance * cullGeometryThreshold)
+  cullGeometryThresholdScaled(tolerance * cullGeometryThreshold),
+  texcoords(texcoords)
 {
 }
 
@@ -60,7 +61,7 @@ void Tessellator::init(class Store& store)
 {
   this->store = &store;
 
-  factory = new TriangulationFactory(&store, logger, tolerance, 3, maxSamples),
+  factory = new TriangulationFactory(&store, logger, tolerance, 3, maxSamples, texcoords),
 
   store.arenaTriangulation.clear();
 

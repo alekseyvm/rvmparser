@@ -111,6 +111,7 @@ int main(int argc, char** argv)
   unsigned chunkTinyVertexThreshold = 0;
 
   bool groupBoundingBoxes = false;
+  bool generateTexcoords = false;
   std::string discard_groups;
   std::string keep_groups;
   std::string output_json;
@@ -136,6 +137,14 @@ int main(int argc, char** argv)
       }
       else if (arg == "--group-bounding-boxes") {
         groupBoundingBoxes = true;
+        continue;
+      }
+      else if (arg == "--texcoords") {
+        generateTexcoords = true;
+        continue;
+      }
+      else if (arg == "--no-texcoords") {
+        generateTexcoords = false;
         continue;
       }
 
@@ -253,7 +262,7 @@ int main(int argc, char** argv)
     unsigned maxSamples = 100;
 
     auto time0 = std::chrono::high_resolution_clock::now();
-    Tessellator tessellator(logger, tolerance, cullLeafThreshold, cullGeometryThreshold, maxSamples);
+    Tessellator tessellator(logger, tolerance, cullLeafThreshold, cullGeometryThreshold, maxSamples, generateTexcoords);
     store->apply(&tessellator);
     auto time1 = std::chrono::high_resolution_clock::now();
     auto e0 = std::chrono::duration_cast<std::chrono::milliseconds>((time1 - time0)).count();

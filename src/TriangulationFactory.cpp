@@ -346,12 +346,13 @@ namespace {
 }
 
 
-TriangulationFactory::TriangulationFactory(Store* store, Logger logger, float tolerance, unsigned minSamples, unsigned maxSamples) :
+TriangulationFactory::TriangulationFactory(Store* store, Logger logger, float tolerance, unsigned minSamples, unsigned maxSamples, bool texcoords) :
   store(store),
   logger(logger),
   tolerance(tolerance),
   minSamples(minSamples),
-  maxSamples(std::max(minSamples, maxSamples))
+  maxSamples(std::max(minSamples, maxSamples)),
+  texcoords(texcoords)
 {
 }
 
@@ -705,7 +706,7 @@ Triangulation* TriangulationFactory::rectangularTorus(Arena* arena, const Geomet
 }
 
 
-Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry* geo, float scale, bool texcoords)
+Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry* geo, float scale)
 {
   auto & ct = geo->circularTorus;
   unsigned segments_l = sagittaBasedSegmentCount(ct.angle, ct.offset + ct.radius, scale); // large radius, toroidal direction
@@ -1015,7 +1016,7 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
 }
 
 
-Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo, float scale, bool texcoords)
+Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo, float scale)
 {
   const auto & cy = geo->cylinder;
   unsigned segments = sagittaBasedSegmentCount(twopi, cy.radius, scale);

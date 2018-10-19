@@ -39,6 +39,7 @@ private:
   unsigned maxSamples = 100;
   bool texcoords = false;
   bool smoothingGroups = false;
+  unsigned nextSmoothingGroup = 0;
 
   std::vector<float> vertices;
   std::vector<Vec3f> vec3;
@@ -57,6 +58,8 @@ private:
 
   std::vector<Vec2f> cosSinMajor;
   std::vector<Vec2f> cosSinRadiusMajor;
+
+  unsigned newSmoothingGroup() { return 0; }
 
 };
 

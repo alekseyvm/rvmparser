@@ -181,7 +181,8 @@ TriangulationFactory::TriangulationFactory(Store* store, Logger logger, float to
   minSamples(minSamples),
   maxSamples(std::max(minSamples, maxSamples)),
   texcoords(texcoords),
-  smoothingGroups(smoothingGroups)
+  smoothingGroups(smoothingGroups),
+  nextSmoothingGroup(store->componentCount())
 {
 }
 
@@ -588,11 +589,15 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
   tri->normals = (float*)arena->alloc(3 * sizeof(float)*tri->vertices_n);
   tri->triangles_n = 2 * (samplesMajor - 1)*samplesMinor * shell + (samplesMinor - 2)*caps;
   tri->indices = (uint32_t*)arena->alloc(3 * sizeof(uint32_t)*tri->triangles_n);
+  if (smoothingGroups) {
+    tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->triangles_n);
+  }
 
   auto * V = (Vec3f*)tri->vertices;
   auto * N = (Vec3f*)tri->normals;
   auto * T = (Vec2f*)tri->texCoords;
   auto * I = tri->indices;
+  auto * S = tri->smoothingGroups;
   unsigned o = 0;
 
   if (texcoords == false) {
@@ -633,14 +638,31 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
                          samplesMinor * (u + 0) + 0);
       }
       o += samplesMajor * samplesMinor;
+      if (smoothingGroups) {
+        for (unsigned i = 0; i < 2 * (samplesMajor - 1)*samplesMinor; i++) {
+          *S++ = geo->componentId;
+        }
+      }
     }
     if (cap[0]) {
       I = tessellateCircle_(I, o, 1, samplesMinor);
       o += samplesMinor;
+      if (smoothingGroups) {
+        auto sgrp = newSmoothingGroup();
+        for (unsigned i = 0; i < (samplesMinor - 2); i++) {
+          *S++ = sgrp;
+        }
+      }
     }
     if (cap[1]) {
       I = tessellateCircle_(I, o, 0, samplesMinor);
       o += samplesMinor;
+      if (smoothingGroups) {
+        auto sgrp = newSmoothingGroup();
+        for (unsigned i = 0; i < (samplesMinor - 2); i++) {
+          *S++ = sgrp;
+        }
+      }
     }
   }
   else {
@@ -689,14 +711,31 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
         }
       }
       o += samplesMajor * (samplesMinor + 1);
+      if (smoothingGroups) {
+        for (unsigned i = 0; i < 2 * (samplesMajor - 1)*samplesMinor; i++) {
+          *S++ = geo->componentId;
+        }
+      }
     }
     if (cap[0]) {
       I = tessellateCircle_(I, o, 1, samplesMinor);
       o += samplesMinor;
+      if (smoothingGroups) {
+        auto sgrp = newSmoothingGroup();
+        for (unsigned i = 0; i < (samplesMinor - 2); i++) {
+          *S++ = sgrp;
+        }
+      }
     }
     if (cap[1]) {
       I = tessellateCircle_(I, o, 0, samplesMinor);
       o += samplesMinor;
+      if (smoothingGroups) {
+        auto sgrp = newSmoothingGroup();
+        for (unsigned i = 0; i < (samplesMinor - 2); i++) {
+          *S++ = sgrp;
+        }
+      }
     }
 
   }
@@ -705,7 +744,9 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
   assert((N - (Vec3f*)tri->normals) == tri->vertices_n);
   assert((I - tri->indices) == 3 * tri->triangles_n);
   assert(o == tri->vertices_n);
-
+  if (smoothingGroups) {
+    assert((S - tri->smoothingGroups) == tri->triangles_n);
+  }
   return tri;
 }
 
@@ -889,6 +930,9 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
     tri->triangles_n = 2 * samples*shell + (samples - 2)*caps;
     tri->texCoords = (float*)arena->alloc(sizeof(Vec2f)*tri->vertices_n);
   }
+  if (smoothingGroups) {
+    tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->triangles_n);
+  }
 
   tri->vertices = (float*)arena->alloc(sizeof(Vec3f)*tri->vertices_n);
   tri->normals = (float*)arena->alloc(sizeof(Vec3f)*tri->vertices_n);
@@ -901,6 +945,7 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
   auto * N = (Vec3f*)tri->normals;
   auto * T = (Vec2f*)tri->texCoords;
   auto * I = tri->indices;
+  auto * S = tri->smoothingGroups;
 
   if (texcoords == false) {
     if (shell) {
@@ -924,11 +969,22 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
         I = quadIndices_(I, o, 2 * i, 2 * ii, 2 * ii + 1, 2 * i + 1);
       }
       o += 2 * samples;
+      if (smoothingGroups) {
+        for (unsigned i = 0; i < 2 * samples; i++) {
+          *S++ = geo->componentId;
+        }
+      }
     }
     for (unsigned k = 0; k < 2; k++) {
       if (cap[k] == false) continue;
       I = tessellateCircle_(I, o, k, samples);
       o += samples;
+      if (smoothingGroups) {
+        auto sgrp = newSmoothingGroup();
+        for (unsigned i = 0; i < (samples - 2); i++) {
+          *S++ = sgrp;
+        }
+      }
     }
   }
   else {
@@ -963,11 +1019,22 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
         I = quadIndices_(I, o, 2 * i, 2 * ii, 2 * ii + 1, 2 * i + 1);
       }
       o += 2 * (samples + 1);
+      if (smoothingGroups) {
+        for (unsigned i = 0; i < 2 * samples; i++) {
+          *S++ = geo->componentId;
+        }
+      }
     }
     for (unsigned k = 0; k < 2; k++) {
       if (cap[k] == false) continue;
       I = tessellateCircle_(I, o, k, samples);
       o += samples;
+      if (smoothingGroups) {
+        auto sgrp = newSmoothingGroup();
+        for (unsigned i = 0; i < (samples - 2); i++) {
+          *S++ = sgrp;
+        }
+      }
     }
     assert((T - (Vec2f*)tri->texCoords) == tri->vertices_n);
   }
@@ -976,6 +1043,9 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
   assert((N - (Vec3f*)tri->normals) == tri->vertices_n);
   assert((I -tri->indices) == 3 * tri->triangles_n);
   assert(o == tri->vertices_n);
+  if (smoothingGroups) {
+    assert((S - tri->smoothingGroups) == tri->triangles_n);
+  }
   return tri;
 }
 

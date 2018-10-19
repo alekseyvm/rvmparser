@@ -74,6 +74,7 @@ struct Geometry
   Geometry* next_comp = nullptr;            // Next geometry in list of geometries of this composite
 
   Connection* connections[6] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+  float distances[6] = { 0.f, 0.f,  0.f, 0.f,  0.f, 0.f };
   const char* colorName = nullptr;
   void * clientData = nullptr;
   uint32_t color = 0x202020u;

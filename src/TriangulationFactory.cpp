@@ -666,11 +666,11 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
     }
   }
   else {
-    const float distanceA = 0.f;
-    const float distanceB = scale * ct.offset * ct.angle ;
+    const float distanceA = geo->distances[0];
+    const float distanceB = geo->distances[1];
     const auto circumference = scale * twopi * ct.radius;
     if (shell) {
-      const auto uScale = 1.f / samplesMajor;
+      const auto uScale = 1.f / (samplesMajor - 1);
       const auto vScale = 1.f / samplesMinor;
       for (unsigned u = 0; u < samplesMajor; u++) {
         const auto un = uScale * u;
@@ -989,9 +989,13 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
   }
   else {
     auto circumference = scale * twopi * cy.radius;
-    auto iScale = circumference / samples;
-    float distances[2] = { 0.f, scale * cy.height };
+    auto iScale = 1.f / samples;
     if (shell) {
+      float distances[2] = {
+        geo->distances[0],
+        geo->distances[1]
+      };
+
       for (unsigned i = 0; i < samples; i++) {
         for (unsigned k = 0; k < 2; k++) {
           *V++ = Vec3f(cosSinRadius[i], h[k]);

@@ -39,63 +39,55 @@ namespace {
     }
   }
 
-  void growFromSeedGeometry(Context* context, Connection* from, Geometry* seed, uint32_t componentId, float distance, unsigned run)
+  void growFromSeedGeometry(Context* context, Connection* from, Geometry* seed, uint32_t componentId, float distance)
   {
     auto & stack = context->stack;
 
-    if (from) {
-      from->temp = run;
-    }
+    if (from) from->temp = componentId;
     assert(seed->componentId == 0);
 
-
-    uint32_t stack_p = 0;
-    stack[stack_p++] = { seed, from, distance };
-    while (stack_p) {
-      auto item = stack[--stack_p];
-
+    uint32_t stackBack = 0;
+    uint32_t stackFront = 0;
+    stack[stackBack++] = { seed, from, distance };
+    while (stackFront < stackBack) {
+      auto item = stack[stackFront++];
       auto * thisGeo = item.geo;
-      assert(thisGeo->componentId == 0);
+
+      if (thisGeo->componentId != 0) {
+        assert(thisGeo->componentId == componentId);
+        continue;
+      }
       thisGeo->componentId = componentId;
 
       for (unsigned i = 0; i < 6; i++) {
 
-        auto * con = thisGeo->connections[i];
-        if (con && con->temp != 0) {
-          assert(con->temp == run);
+        auto primitiveLength = 0.f;
+        switch (item.geo->kind)
+        {
+        case Geometry::Kind::CircularTorus:
+          primitiveLength = item.geo->circularTorus.offset * item.geo->circularTorus.angle;
+          break;
+        case Geometry::Kind::Cylinder:
+          primitiveLength = item.geo->cylinder.height;
+          break;
+        default:
+          break;
         }
+        auto distanceNew = item.distance + getScale(item.geo->M_3x4) * primitiveLength;
+        thisGeo->distances[i] = distanceNew;
 
+        auto * con = thisGeo->connections[i];
         if (con == item.from) {
           thisGeo->distances[i] = item.distance;
         }
         else if (con && con->temp == 0) {
-          auto primitiveLength = 0.f;
-          switch (item.geo->kind)
-          {
-          case Geometry::Kind::CircularTorus:
-            primitiveLength = item.geo->circularTorus.offset * item.geo->circularTorus.angle;
-            break;
-          case Geometry::Kind::Cylinder:
-            primitiveLength = item.geo->cylinder.height;
-            break;
-          default:
-            break;
-          }
-
-          auto distanceNew = item.distance + getScale(item.geo->M_3x4) * primitiveLength;
-          thisGeo->distances[i] = distanceNew;
-
           bool isFirst = thisGeo == con->geo[0];
           auto * thatGeo = con->geo[isFirst ? 1 : 0];
-          //auto thisOffset = con->offset[isFirst ? 0 : 1];
-          //auto thisIFace = getInterface(thisGeo, thisOffset);
-          //auto thatOffset = con->offset[isFirst ? 1 : 0];
-          //auto thatIFace = getInterface(thatGeo, thatOffset);
 
           assert(thatGeo != thisGeo);
           assert(con->temp == 0);
-          con->temp = run;
-          stack[stack_p++] = { thatGeo , con, distanceNew };
+          con->temp = componentId;
+          stack[stackBack++] = { thatGeo , con, distanceNew };
         }
       }
     }
@@ -138,10 +130,6 @@ void growComponents(Store* store, Logger logger)
   for (unsigned g = 0; g < context.geosCount; g++) {
     auto * geo = context.geos[g];
 
-    if (g == 154) {
-      int a = 2;
-    }
-
     auto unprocessedConnections = 0;
     for (unsigned i = 0; i < 6; i++) {
       if (geo->connections[i] && geo->connections[i]->temp == 0) unprocessedConnections++;
@@ -150,8 +138,8 @@ void growComponents(Store* store, Logger logger)
     switch (geo->kind) {
     case Geometry::Kind::Cylinder:
       if (unprocessedConnections == 1) {
+        growFromSeedGeometry(&context, nullptr, geo, store->newComponent() , 0.f);
         seedGeometries++;
-        growFromSeedGeometry(&context, nullptr, geo, store->newComponent() , 0.f, seedGeometries);
       }
       break;
     default:

@@ -36,7 +36,7 @@ namespace {
     Store* store;
     Logger logger;
     Buffer<Anchor> anchors;
-    const float epsilon = 0.1f;
+    const float epsilon = 0.01f;
     unsigned anchors_n = 0;
 
     unsigned anchors_max = 0;

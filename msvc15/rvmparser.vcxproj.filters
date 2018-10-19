@@ -199,6 +199,9 @@
     <ClInclude Include="..\src\GeometryInterface.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\R3PointKdTree.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -283,6 +286,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\GeometryInterface.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\R3PointKdTree.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

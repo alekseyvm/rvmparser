@@ -176,6 +176,7 @@
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\ParserAtt.cpp" />
     <ClCompile Include="..\src\ParserRVM.cpp" />
+    <ClCompile Include="..\src\R3PointKdTree.cpp" />
     <ClCompile Include="..\src\Store.cpp" />
     <ClCompile Include="..\src\Tessellator.cpp" />
     <ClCompile Include="..\src\TriangulationFactory.cpp" />
@@ -237,6 +238,7 @@
     <ClInclude Include="..\src\LinAlg.h" />
     <ClInclude Include="..\src\LinAlgOps.h" />
     <ClInclude Include="..\src\Parser.h" />
+    <ClInclude Include="..\src\R3PointKdTree.h" />
     <ClInclude Include="..\src\StoreVisitor.h" />
     <ClInclude Include="..\src\Store.h" />
     <ClInclude Include="..\src\Tessellator.h" />

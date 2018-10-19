@@ -5,6 +5,7 @@
 #include "Common.h"
 #include "Store.h"
 #include "LinAlgOps.h"
+#include "R3PointKdTree.h"
 
 using std::sin;
 using std::cos;
@@ -35,7 +36,7 @@ namespace {
     Store* store;
     Logger logger;
     Buffer<Anchor> anchors;
-    const float epsilon = 0.001f;
+    const float epsilon = 0.1f;
     unsigned anchors_n = 0;
 
     unsigned anchors_max = 0;
@@ -242,9 +243,69 @@ namespace {
         break;
       }
     }
-    connect(context, offset);
+    //connect(context, offset);
   }
 
+  void runMatching(Context* context)
+  {
+    auto & anchors = context->anchors;
+    const auto anchors_n = context->anchors_n;
+
+    std::vector<Vec3f> P(context->anchors_n);
+    for (unsigned i = 0; i < context->anchors_n; i++) {
+      P[i] = context->anchors[i].p;
+    }
+
+    KdTree::R3StaticTree kdtree(context->logger, P.data(), context->anchors_n, true);
+    kdtree.assertInvariants();
+
+    std::vector<KdTree::QueryResult> queryResult;
+    for (unsigned i = 0; i < anchors_n; i++) {
+      if (anchors[i].matched) continue;
+
+      kdtree.getPointsWithinRadius(queryResult, P[i], context->epsilon);
+
+      float bestDist = FLT_MAX;
+      uint32_t bestIx = ~0u;
+      for (auto & item : queryResult) {
+        if (item.distanceSquared < bestDist &&
+            anchors[item.ix].geo != anchors[i].geo &&
+            anchors[item.ix].matched == false && 
+            dot(anchors[i].d, anchors[item.ix].d) < -0.98f)
+        {
+          bestDist = item.distanceSquared;
+          bestIx = item.ix;
+        }
+      }
+
+      if (bestIx != ~0u) {
+        auto & anchorA = anchors[i];
+        auto & anchorB = anchors[bestIx];
+
+        anchorA.matched = true;
+        anchorB.matched = true;
+
+        auto * connection = context->store->newConnection();
+        connection->geo[0] = anchorA.geo;
+        connection->geo[1] = anchorB.geo;
+        connection->offset[0] = anchorA.o;
+        connection->offset[1] = anchorB.o;
+        connection->p = anchorB.p;
+        connection->d = anchorB.d;
+        connection->flags = Connection::Flags::None;
+        connection->setFlag(anchorA.flags);
+        connection->setFlag(anchorB.flags);
+
+        assert(anchorA.geo->connections[anchorA.o] == nullptr);
+        anchorA.geo->connections[anchorA.o] = connection;
+
+        assert(anchorB.geo->connections[anchorB.o] == nullptr);
+        anchorB.geo->connections[anchorB.o] = connection;
+
+        context->anchors_matched += 2;
+      }
+    }
+  }
 
 
 }
@@ -270,19 +331,24 @@ void connect(Store* store, Logger logger)
       }
     }
   }
-  for (unsigned i = 0; i < context.anchors_n; i++) {
-    auto & a = context.anchors[i];
-    assert(a.matched == false);
 
-    auto b = a.p + 0.02f*a.d;
+  runMatching(&context);
 
-    //if (a.geo->kind == Geometry::Kind::Pyramid) {
-    //  context.store->addDebugLine(a.p.data, b.data, 0x003300);
-    //}
-    //else {
-    //  context.store->addDebugLine(a.p.data, b.data, 0xff0000);
-    //}
-  }
+
+
+  //for (unsigned i = 0; i < context.anchors_n; i++) {
+  //  auto & a = context.anchors[i];
+  //  assert(a.matched == false);
+
+  //  auto b = a.p + 0.02f*a.d;
+
+  //  //if (a.geo->kind == Geometry::Kind::Pyramid) {
+  //  //  context.store->addDebugLine(a.p.data, b.data, 0x003300);
+  //  //}
+  //  //else {
+  //  //  context.store->addDebugLine(a.p.data, b.data, 0xff0000);
+  //  //}
+  //}
   auto time1 = std::chrono::high_resolution_clock::now();
   auto e0 = std::chrono::duration_cast<std::chrono::milliseconds>((time1 - time0)).count();
 

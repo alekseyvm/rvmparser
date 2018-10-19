@@ -7,7 +7,7 @@
 class TriangulationFactory
 {
 public:
-  TriangulationFactory(Store* store, Logger logger, float tolerance, unsigned minSamples, unsigned maxSamples, bool texcoords);
+  TriangulationFactory(Store* store, Logger logger, float tolerance, unsigned minSamples, unsigned maxSamples, bool texcoords, bool smoothingGroups);
 
   unsigned sagittaBasedSegmentCount(float arc, float radius, float scale);
 
@@ -38,6 +38,7 @@ private:
   unsigned minSamples = 3;
   unsigned maxSamples = 100;
   bool texcoords = false;
+  bool smoothingGroups = false;
 
   std::vector<float> vertices;
   std::vector<Vec3f> vec3;
@@ -64,7 +65,7 @@ class Tessellator : public StoreVisitor
 public:
   Tessellator() = delete;
   Tessellator(const Tessellator&) = delete;
-  Tessellator(Logger logger, float tolerance, float cullLeafThreshold, float cullGeometryThreshold, unsigned maxSamples, bool texcoords);
+  Tessellator(Logger logger, float tolerance, float cullLeafThreshold, float cullGeometryThreshold, unsigned maxSamples, bool texcoords, bool smoothingGroups);
 
   Tessellator& operator=(const Tessellator&) = delete;
 
@@ -107,6 +108,7 @@ protected:
   float cullLeafThresholdScaled = 0.f / 0.f;
   float cullGeometryThresholdScaled = 0.f / 0.f;
   bool texcoords = false;
+  bool smoothingGroups = false;
 
   Arena arena;
   TriangulationFactory* factory = nullptr;

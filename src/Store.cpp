@@ -68,6 +68,7 @@ void Store::addDebugLine(float* a, float* b, uint32_t color)
 Connection* Store::newConnection()
 {
   auto * connection = arena.alloc<Connection>();
+  numConnectionsAllocated++;
   insert(connections, connection);
   return connection;
 }
@@ -93,6 +94,7 @@ Geometry* Store::cloneGeometry(Group* parent, const Geometry* src)
   dst->bboxLocal = src->bboxLocal;
   dst->bboxWorld = src->bboxWorld;
   dst->id = src->id;
+  dst->componentId = src->componentId;
   dst->sampleStartAngle = src->sampleStartAngle;
   switch (dst->kind) {
     case Geometry::Kind::Pyramid:

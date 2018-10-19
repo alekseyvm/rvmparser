@@ -80,6 +80,7 @@ struct Geometry
 
   Kind kind;
   unsigned id;
+  uint32_t componentId = 0;
 
   Mat3x4f M_3x4;
   BBox3f bboxLocal;
@@ -269,6 +270,7 @@ public:
   unsigned nonEmptyNonLeafCount() const { return numNonEmptyNonLeaves; }
   unsigned geometryCount_() const { return numGeometries; }
   unsigned geometryCountAllocated() const { return numGeometriesAllocated; }
+  unsigned connectionCountAllocated() const { return numConnectionsAllocated; }
 
   const char* errorString() const { return error_str; }
   void setErrorString(const char* str);
@@ -288,6 +290,9 @@ public:
 
   void forwardGroupIdToGeometries();
 
+  uint32_t newComponent() { return numComponents++; }
+  uint32_t componentCount() const { return numComponents; }
+
 private:
   unsigned numGroups = 0;
   unsigned numGroupsAllocated = 0;
@@ -296,6 +301,8 @@ private:
   unsigned numNonEmptyNonLeaves = 0;
   unsigned numGeometries = 0;
   unsigned numGeometriesAllocated = 0;
+  unsigned numConnectionsAllocated = 0;
+  unsigned numComponents = 1;
 
   const char* error_str = nullptr;
 

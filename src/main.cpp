@@ -112,6 +112,7 @@ int main(int argc, char** argv)
 
   bool groupBoundingBoxes = false;
   bool generateTexcoords = false;
+  bool generateSmoothingGroups = false;
   std::string discard_groups;
   std::string keep_groups;
   std::string output_json;
@@ -145,6 +146,14 @@ int main(int argc, char** argv)
       }
       else if (arg == "--no-texcoords") {
         generateTexcoords = false;
+        continue;
+      }
+      else if (arg == "--smoothing-groups") {
+        generateSmoothingGroups = true;
+        continue;
+      }
+      else if (arg == "--no-smoothing-group") {
+        generateSmoothingGroups = false;
         continue;
       }
 
@@ -249,6 +258,7 @@ int main(int argc, char** argv)
   if (rv == 0) {
     connect(store, logger);
     align(store, logger);
+    growComponents(store, logger);
   }
 
   if (rv == 0 && (should_tessellate || !output_json.empty())) {
@@ -262,7 +272,7 @@ int main(int argc, char** argv)
     unsigned maxSamples = 100;
 
     auto time0 = std::chrono::high_resolution_clock::now();
-    Tessellator tessellator(logger, tolerance, cullLeafThreshold, cullGeometryThreshold, maxSamples, generateTexcoords);
+    Tessellator tessellator(logger, tolerance, cullLeafThreshold, cullGeometryThreshold, maxSamples, generateTexcoords, generateSmoothingGroups);
     store->apply(&tessellator);
     auto time1 = std::chrono::high_resolution_clock::now();
     auto e0 = std::chrono::duration_cast<std::chrono::milliseconds>((time1 - time0)).count();

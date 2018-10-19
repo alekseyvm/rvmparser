@@ -170,6 +170,8 @@
     <ClCompile Include="..\src\ExportJson.cpp" />
     <ClCompile Include="..\src\ExportObj.cpp" />
     <ClCompile Include="..\src\Flatten.cpp" />
+    <ClCompile Include="..\src\GeometryInterface.cpp" />
+    <ClCompile Include="..\src\GrowComponents.cpp" />
     <ClCompile Include="..\src\LinAlgOps.cpp" />
     <ClCompile Include="..\src\main.cpp" />
     <ClCompile Include="..\src\ParserAtt.cpp" />
@@ -231,6 +233,7 @@
     <ClInclude Include="..\src\DumpNames.h" />
     <ClInclude Include="..\src\ExportObj.h" />
     <ClInclude Include="..\src\Flatten.h" />
+    <ClInclude Include="..\src\GeometryInterface.h" />
     <ClInclude Include="..\src\LinAlg.h" />
     <ClInclude Include="..\src\LinAlgOps.h" />
     <ClInclude Include="..\src\Parser.h" />

@@ -196,6 +196,9 @@
     <ClInclude Include="..\libs\rapidjson\include\rapidjson\msinttypes\stdint.h">
       <Filter>rapidjson\msinttypes</Filter>
     </ClInclude>
+    <ClInclude Include="..\src\GeometryInterface.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\main.cpp">
@@ -274,6 +277,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\DiscardGroups.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\GrowComponents.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\GeometryInterface.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

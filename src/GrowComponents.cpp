@@ -39,13 +39,15 @@ namespace {
     }
   }
 
-  void growFromSeedGeometry(Context* context, Connection* from, Geometry* seed, uint32_t componentId, float distance)
+  void growFromSeedGeometry(Context* context, Connection* from, Geometry* seed, uint32_t componentId, float distance, unsigned run)
   {
     auto & stack = context->stack;
 
     if (from) {
-      from->temp = 1;
+      from->temp = run;
     }
+    assert(seed->componentId == 0);
+
 
     uint32_t stack_p = 0;
     stack[stack_p++] = { seed, from, distance };
@@ -53,10 +55,16 @@ namespace {
       auto item = stack[--stack_p];
 
       auto * thisGeo = item.geo;
+      assert(thisGeo->componentId == 0);
       thisGeo->componentId = componentId;
 
       for (unsigned i = 0; i < 6; i++) {
+
         auto * con = thisGeo->connections[i];
+        if (con && con->temp != 0) {
+          assert(con->temp == run);
+        }
+
         if (con == item.from) {
           thisGeo->distances[i] = item.distance;
         }
@@ -84,7 +92,9 @@ namespace {
           //auto thatOffset = con->offset[isFirst ? 1 : 0];
           //auto thatIFace = getInterface(thatGeo, thatOffset);
 
-          con->temp = 1;
+          assert(thatGeo != thisGeo);
+          assert(con->temp == 0);
+          con->temp = run;
           stack[stack_p++] = { thatGeo , con, distanceNew };
         }
       }
@@ -102,6 +112,19 @@ void growComponents(Store* store, Logger logger)
   auto time0 = std::chrono::high_resolution_clock::now();
   for (auto * connection = store->getFirstConnection(); connection != nullptr; connection = connection->next) {
     connection->temp = 0;
+
+    for (auto s = 0; s < 2; s++) {
+      auto * geo = connection->geo[s];
+      unsigned o = ~0u;
+      for (unsigned i = 0; i < 6; i++) {
+        if (geo->connections[i] == connection) {
+          o = i;
+        }
+      }
+      assert(o != ~0u);
+      assert(connection->offset[s ? 0 : 1] != ~0u);
+    }
+
   }
 
   // start at the ends
@@ -114,6 +137,11 @@ void growComponents(Store* store, Logger logger)
   unsigned seedGeometries = 0;
   for (unsigned g = 0; g < context.geosCount; g++) {
     auto * geo = context.geos[g];
+
+    if (g == 154) {
+      int a = 2;
+    }
+
     auto unprocessedConnections = 0;
     for (unsigned i = 0; i < 6; i++) {
       if (geo->connections[i] && geo->connections[i]->temp == 0) unprocessedConnections++;
@@ -122,8 +150,8 @@ void growComponents(Store* store, Logger logger)
     switch (geo->kind) {
     case Geometry::Kind::Cylinder:
       if (unprocessedConnections == 1) {
-        growFromSeedGeometry(&context, nullptr, geo, store->newComponent() , 0.f);
         seedGeometries++;
+        growFromSeedGeometry(&context, nullptr, geo, store->newComponent() , 0.f, seedGeometries);
       }
       break;
     default:
@@ -132,11 +160,7 @@ void growComponents(Store* store, Logger logger)
   }
 
 
-  for (auto * connection = store->getFirstConnection(); connection != nullptr; connection = connection->next) {
 
-
-
-  }
   auto time1 = std::chrono::high_resolution_clock::now();
   auto e0 = std::chrono::duration_cast<std::chrono::milliseconds>((time1 - time0)).count();
 

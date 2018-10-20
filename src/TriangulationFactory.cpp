@@ -670,19 +670,24 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
     const float distanceB = geo->distances[1];
     const auto circumference = scale * twopi * ct.radius;
     if (shell) {
+      float distances[2] = {
+        geo->distances[0],
+        geo->distances[1]
+      };
+      const auto vScale = distances[0] < distances[1] ? -1.f / samplesMinor : 1.f / samplesMinor;
+      const auto vConst = distances[0] < distances[1] ? 1 : 0;
       const auto uScale = 1.f / (samplesMajor - 1);
-      const auto vScale = 1.f / samplesMinor;
       for (unsigned u = 0; u < samplesMajor; u++) {
         const auto un = uScale * u;
         const auto distance = (1.f - un)*distanceA + un * distanceB;
         for (unsigned v = 0; v < samplesMinor; v++) {
           *V++ = Vec3f((ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[u], ct.radius * cosSin[v].y);
           *N++ = Vec3f(cosSin[v].x * cosSinMajor[u], cosSin[v].y);
-          *T++ = encodeCylindricalTexCoord(vScale * v, distance, circumference);
+          *T++ = encodeCylindricalTexCoord(vScale * v + vConst, distance, circumference);
         }
         *V++ = Vec3f((ct.radius * cosSin[0].x + ct.offset) * cosSinMajor[u], ct.radius * cosSin[0].y);
         *N++ = Vec3f(cosSin[0].x * cosSinMajor[u], cosSin[0].y);
-        *T++ = encodeCylindricalTexCoord(1.f, distance, circumference);
+        *T++ = encodeCylindricalTexCoord(1.f - vConst, distance, circumference);
       }
     }
     if (cap[0]) {
@@ -989,24 +994,25 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
   }
   else {
     auto circumference = scale * twopi * cy.radius;
-    auto iScale = 1.f / samples;
     if (shell) {
       float distances[2] = {
         geo->distances[0],
         geo->distances[1]
       };
+      auto iScale = distances[0] < distances[1] ? 1.f / samples : -1.f / samples;
+      auto iConst = distances[0] < distances[1] ? 0 : 1;
 
       for (unsigned i = 0; i < samples; i++) {
         for (unsigned k = 0; k < 2; k++) {
           *V++ = Vec3f(cosSinRadius[i], h[k]);
           *N++ = Vec3f(cosSin[i], 0);
-          *T++ = encodeCylindricalTexCoord(iScale * i, distances[k], circumference);
+          *T++ = encodeCylindricalTexCoord(iScale * i + iConst, distances[k], circumference);
         }
       }
       for (unsigned k = 0; k < 2; k++) {// clip texture seam.
         *V++ = Vec3f(cosSinRadius[0], h[k]);
         *N++ = Vec3f(cosSin[0], 0);
-        *T++ = encodeCylindricalTexCoord(1.f, distances[k], circumference);
+        *T++ = encodeCylindricalTexCoord(1.f- iConst, distances[k], circumference);
       }
     }
     for (unsigned j = 0; j < 2; j++) {

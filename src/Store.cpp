@@ -2,7 +2,7 @@
 #include <cassert>
 #include "Store.h"
 #include "StoreVisitor.h"
-
+#include "LinAlgOps.h"
 
 
 namespace {
@@ -52,8 +52,21 @@ Group* Store::findRootGroup(const char* name)
   return nullptr;
 }
 
+void Store::addDebugLine(const Geometry* frame, const Vec3f& a, const Vec3f& b, uint32_t color)
+{
+  auto aa = mul(frame->M_3x4, a);
+  auto bb = mul(frame->M_3x4, b);
+  auto line = arena.alloc<DebugLine>();
+  for (unsigned k = 0; k < 3; k++) {
+    line->a[k] = aa[k];
+    line->b[k] = bb[k];
+  }
+  line->color = color;
+  insert(debugLines, line);
+}
 
-void Store::addDebugLine(float* a, float* b, uint32_t color)
+
+void Store::addDebugLine(const Vec3f& a, const Vec3f& b, uint32_t color)
 {
   auto line = arena.alloc<DebugLine>();
   for (unsigned k = 0; k < 3; k++) {

@@ -258,7 +258,9 @@ public:
 
   Attribute* newAttribute(Group* group, const char* key);
 
-  void addDebugLine(float* a, float* b, uint32_t color);
+  void addDebugLine(const Geometry* frame, const Vec3f& a, const Vec3f& b, uint32_t color);
+
+  void addDebugLine(const Vec3f& a, const Vec3f& b, uint32_t color);
 
   Connection* newConnection();
 

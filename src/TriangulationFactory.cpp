@@ -1007,6 +1007,8 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
           *V++ = Vec3f(cosSinRadius[i], h[k]);
           *N++ = Vec3f(cosSin[i], 0);
           *T++ = encodeCylindricalTexCoord(iScale * i + iConst, distances[k], circumference);
+
+          store->addDebugLine(geo, Vec3f(cosSinRadius[i], h[k]), Vec3f(cosSinRadius[i], h[k]) + (0.05f/scale)*Vec3f(cosSin[i], 0), 0xffff00u);
         }
       }
       for (unsigned k = 0; k < 2; k++) {// clip texture seam.

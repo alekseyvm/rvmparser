@@ -46,4 +46,7 @@ private:
   bool primitiveBoundingBoxes = false;
   bool compositeBoundingBoxes = false;
 
+  uint32_t currentColor = ~0u;
+  void useColor(const char* colorName, uint32_t color);
+
 };

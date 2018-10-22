@@ -86,28 +86,8 @@ void ExportObj::init(class Store& store)
   conn = store.conn;
 
   stack.accommodate(store.groupCountAllocated());
-
-  char colorName[6];
   for (auto * line = store.getFirstDebugLine(); line != nullptr; line = line->next) {
-
-    for (unsigned k = 0; k < 6; k++) {
-      auto v = (line->color >> (4 * k)) & 0xf;
-      if (v < 10) colorName[k] = '0' + v;
-      else colorName[k] = 'a' + v - 10;
-    }
-    auto * name = store.strings.intern(&colorName[0], &colorName[6]);
-    if (!definedColors.get(uint64_t(name))) {
-      definedColors.insert(uint64_t(name), 1);
-      auto r = (1.f / 255.f)*((line->color >> 16) & 0xFF);
-      auto g = (1.f / 255.f)*((line->color >> 8) & 0xFF);
-      auto b = (1.f / 255.f)*((line->color) & 0xFF);
-      fprintf(mtl, "newmtl %s\n", name);
-      fprintf(mtl, "Ka %f %f %f\n", (2.f / 3.f)*r, (2.f / 3.f)*g, (2.f / 3.f)*b);
-      fprintf(mtl, "Kd %f %f %f\n", r, g, b);
-      fprintf(mtl, "Ks 0.5 0.5 0.5\n");
-    }
-    fprintf(out, "usemtl %s\n", name);
-
+    useColor(nullptr, line->color);
     fprintf(out, "v %f %f %f\n", line->a[0], line->a[1], line->a[2]);
     fprintf(out, "v %f %f %f\n", line->b[0], line->b[1], line->b[2]);
     fprintf(out, "l -1 -2\n");
@@ -201,13 +181,49 @@ namespace {
 
 }
 
+void ExportObj::useColor(const char* colorName, uint32_t color)
+{
+  if (currentColor == color) return;
+  currentColor = color;
+
+  char name[9];
+  name[0] = '0';
+  name[1] = 'x';
+  for (unsigned k = 0; k < 6; k++) {
+    auto v = (color >> (4 * (5 - k))) & 0xf;
+    if (v < 10) name[k+2] = '0' + v;
+    else name[k+2] = 'a' + v - 10;
+  }
+  name[8] = '\0';
+  auto * hexName = store->strings.intern(name);
+
+  if (!definedColors.get(uint64_t(hexName))) {
+    definedColors.insert(uint64_t(hexName), 1);
+
+    auto r = (1.f / 255.f)*((color >> 16) & 0xFF);
+    auto g = (1.f / 255.f)*((color >> 8) & 0xFF);
+    auto b = (1.f / 255.f)*((color) & 0xFF);
+
+
+    fprintf(mtl, "newmtl %s\n", hexName);
+    fprintf(mtl, "Ka %f %f %f\n", (2.f / 3.f)*r, (2.f / 3.f)*g, (2.f / 3.f)*b);
+    fprintf(mtl, "Kd %f %f %f\n", r, g, b);
+    fprintf(mtl, "Ks 0.5 0.5 0.5\n");
+  }
+  fprintf(out, "usemtl %s\n", hexName);
+
+}
+
 void ExportObj::geometry(struct Geometry* geometry)
 {
+  
+
   const auto & M = geometry->M_3x4;
 
-  if (geometry->colorName == nullptr) {
-    geometry->colorName = store->strings.intern("default");
-  }
+
+  //if (geometry->colorName == nullptr) {
+  //  geometry->colorName = store->strings.intern("default");
+  //}
 
   //if (geometry->kind == Geometry::Kind::Box) {
   //  geometry->colorName = store->strings.intern("blah-red");
@@ -226,20 +242,8 @@ void ExportObj::geometry(struct Geometry* geometry)
   //  geometry->color = 0x888800;
   //}
 
-  if (!definedColors.get(uint64_t(geometry->colorName))) {
-    definedColors.insert(uint64_t(geometry->colorName), 1);
-
-    auto r = (1.f / 255.f)*((geometry->color >> 16) & 0xFF);
-    auto g = (1.f / 255.f)*((geometry->color >> 8) & 0xFF);
-    auto b = (1.f / 255.f)*((geometry->color) & 0xFF);
-
-    fprintf(mtl, "newmtl %s\n", geometry->colorName);
-    fprintf(mtl, "Ka %f %f %f\n", (2.f / 3.f)*r, (2.f / 3.f)*g, (2.f / 3.f)*b);
-    fprintf(mtl, "Kd %f %f %f\n", r,g, b);
-    fprintf(mtl, "Ks 0.5 0.5 0.5\n");
-  }
-
-  fprintf(out, "usemtl %s\n", geometry->colorName);
+  
+  useColor(geometry->colorName, geometry->color);
 
   auto scale = 1.f;
   

@@ -119,14 +119,14 @@ void growComponents(Store* store, Logger logger)
 
   }
 
-  // start at the ends
   context.stack.accommodate(store->geometryCountAllocated());
   context.geos.accommodate(store->geometryCountAllocated());
   for (auto * root = store->getFirstRoot(); root; root = root->next) {
     extractGeometries(&context, root);
   }
 
-  unsigned seedGeometries = 0;
+  // First grow open components by picking an end and growing from there.
+  unsigned openComponents = 0;
   for (unsigned g = 0; g < context.geosCount; g++) {
     auto * geo = context.geos[g];
 
@@ -139,7 +139,7 @@ void growComponents(Store* store, Logger logger)
     case Geometry::Kind::Cylinder:
       if (unprocessedConnections == 1) {
         growFromSeedGeometry(&context, nullptr, geo, store->newComponent() , 0.f);
-        seedGeometries++;
+        openComponents++;
       }
       break;
     default:
@@ -147,10 +147,18 @@ void growComponents(Store* store, Logger logger)
     }
   }
 
-
+  // Then grow closed components by picking arbitrary unprocessed geometries and grow from there.
+  unsigned closedComponents = 0;
+  for (unsigned g = 0; g < context.geosCount; g++) {
+    auto * geo = context.geos[g];
+    if (geo->componentId == 0) {
+      growFromSeedGeometry(&context, geo->connections[0], geo, store->newComponent(), 0.f);
+      closedComponents++;
+    }
+  }
 
   auto time1 = std::chrono::high_resolution_clock::now();
   auto e0 = std::chrono::duration_cast<std::chrono::milliseconds>((time1 - time0)).count();
 
-  logger(0, "Processed %d connections %d seed geometries (%lldms).", store->connectionCountAllocated(),seedGeometries, e0);
+  logger(0, "Processed %d connections -> %d open and %d closed components (%lldms).", store->connectionCountAllocated(), openComponents, closedComponents, e0);
 }

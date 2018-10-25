@@ -242,12 +242,14 @@ void ExportObj::geometry(struct Geometry* geometry)
   //  geometry->color = 0x888800;
   //}
 
+
   
-  useColor(geometry->colorName, geometry->color);
 
   auto scale = 1.f;
   
   if (geometry->kind == Geometry::Kind::Line) {
+    useColor(geometry->colorName, geometry->color);
+
     auto a = scale * mul(geometry->M_3x4, Vec3f(geometry->line.a, 0, 0));
     auto b = scale * mul(geometry->M_3x4, Vec3f(geometry->line.b, 0, 0));
     fprintf(out, "v %f %f %f\n", a.x, a.y, a.z);
@@ -258,6 +260,41 @@ void ExportObj::geometry(struct Geometry* geometry)
   else {
     assert(geometry->triangulation);
     auto * tri = geometry->triangulation;
+
+    if (tri->dPdu && tri->dPdv) {
+
+      for (unsigned i = 0; i < tri->vertices_n; i++) {
+        auto & uu = tri->dPdu[i];
+
+        if (uu.x == 0.f && uu.y == 0.f && uu.z == 0.f) continue;
+        continue;
+
+        auto p = scale * mul(geometry->M_3x4, Vec3f(tri->vertices + 3 * i));
+        auto n = normalize(mul(Mat3f(geometry->M_3x4.data), Vec3f(tri->normals + 3 * i)));
+        auto u = normalize(mul(Mat3f(geometry->M_3x4.data), tri->dPdu[i]));
+        auto v = normalize(mul(Mat3f(geometry->M_3x4.data), tri->dPdv[i]));
+
+        auto o = p + 0.0001f*n;
+        auto ou = o + 0.05f*u;
+        auto ov = o + 0.05f*v;
+        auto on = o + 0.05f*cross(u, v);
+
+        fprintf(out, "v %f %f %f\n", o.x, o.y, o.z);
+        fprintf(out, "v %f %f %f\n", ou.x, ou.y, ou.z);
+        fprintf(out, "v %f %f %f\n", ov.x, ov.y, ov.z);
+        fprintf(out, "v %f %f %f\n", on.x, on.y, on.z);
+
+        useColor(nullptr, 0xff0000u);
+        fprintf(out, "l -3 -4\n");
+        useColor(nullptr, 0x00ff00u);
+        fprintf(out, "l -2 -4\n");
+        useColor(nullptr, 0x0000ffu);
+        fprintf(out, "l -1 -4\n");
+        off_v += 4;
+      }
+    }
+
+    useColor(geometry->colorName, geometry->color);
 
     if (tri->indices != 0) {
       //fprintf(out, "g\n");

@@ -162,6 +162,7 @@ namespace {
   Vec2f encodeCylindricalTexCoord(const float unitCircum, const float distance, const float circumference)
   {
     return Vec2f(unitCircum, distance);
+    //return Vec2f(distance, unitCircum);
   }
 
   // tex in circle on origin with radius 1.
@@ -583,6 +584,8 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
   else {
     tri->vertices_n = (samplesMinor + 1)*samplesMajor * shell + samplesMinor * caps;
     tri->texCoords = (float*)arena->alloc(sizeof(Vec2f)*tri->vertices_n);
+    tri->dPdu = (Vec3f*)arena->alloc(sizeof(Vec3f)*tri->vertices_n);
+    tri->dPdv = (Vec3f*)arena->alloc(sizeof(Vec3f)*tri->vertices_n);
   }
 
   tri->vertices = (float*)arena->alloc(3 * sizeof(float)*tri->vertices_n);
@@ -595,7 +598,6 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
 
   auto * V = (Vec3f*)tri->vertices;
   auto * N = (Vec3f*)tri->normals;
-  auto * T = (Vec2f*)tri->texCoords;
   auto * I = tri->indices;
   auto * S = tri->smoothingGroups;
   unsigned o = 0;
@@ -666,6 +668,10 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
     }
   }
   else {
+    auto * T = (Vec2f*)tri->texCoords;
+    auto * dPdu = tri->dPdu;
+    auto * dPdv = tri->dPdv;
+
     const float distanceA = geo->distances[0];
     const float distanceB = geo->distances[1];
     const auto circumference = scale * twopi * ct.radius;
@@ -674,8 +680,9 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
         geo->distances[0],
         geo->distances[1]
       };
-      const auto vScale = distances[0] < distances[1] ? -1.f / samplesMinor : 1.f / samplesMinor;
-      const auto vConst = distances[0] < distances[1] ? 1 : 0;
+      const float flipSign = distances[0] < distances[1] ? 1.f : -1.f;
+      const auto vScale = flipSign / samplesMinor;
+      const auto vConst = distances[0] < distances[1] ? 0 : 1;
       const auto uScale = 1.f / (samplesMajor - 1);
       for (unsigned u = 0; u < samplesMajor; u++) {
         const auto un = uScale * u;
@@ -684,10 +691,17 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
           *V++ = Vec3f((ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[u], ct.radius * cosSin[v].y);
           *N++ = Vec3f(cosSin[v].x * cosSinMajor[u], cosSin[v].y);
           *T++ = encodeCylindricalTexCoord(vScale * v + vConst, distance, circumference);
+
+          *dPdu++ = flipSign * Vec3f(-(ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[u].y,
+                                      (ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[u].x,
+                                     0.f);
+          *dPdv++ = flipSign * Vec3f(-ct.radius * cosSin[v].y * cosSinMajor[u], ct.radius * cosSin[v].x);
         }
         *V++ = Vec3f((ct.radius * cosSin[0].x + ct.offset) * cosSinMajor[u], ct.radius * cosSin[0].y);
         *N++ = Vec3f(cosSin[0].x * cosSinMajor[u], cosSin[0].y);
         *T++ = encodeCylindricalTexCoord(1.f - vConst, distance, circumference);
+        *dPdu++ = Vec3f(0.f);
+        *dPdv++ = Vec3f(0.f);
       }
     }
     if (cap[0]) {
@@ -695,6 +709,8 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
         *V++ = Vec3f((ct.radius*cosSin[v].x + ct.offset) * cosSinMajor[0], ct.radius*cosSin[v].y);
         *N++ = Vec3f(0, -1, 0);
         *T++ = encodeCircularTexCoord(cosSin[v], scale * ct.radius);
+        *dPdu++ = Vec3f(0.f);
+        *dPdv++ = Vec3f(0.f);
       }
     }
     if (cap[1]) {
@@ -703,6 +719,8 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
         *V++ = Vec3f((ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[m], ct.radius * cosSin[v].y);
         *N++ = Vec3f(-cosSinMajor[m].y, cosSinMajor[m].x, 0.f);
         *T++ = encodeCircularTexCoord(cosSin[v], scale * ct.radius);
+        *dPdu++ = Vec3f(0.f);
+        *dPdv++ = Vec3f(0.f);
       }
     }
     if (shell) {
@@ -742,7 +760,9 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
         }
       }
     }
-
+    assert(dPdu - tri->dPdu == tri->vertices_n);
+    assert(dPdv - tri->dPdv == tri->vertices_n);
+    assert(T - (Vec2f*)tri->texCoords == tri->vertices_n);
   }
 
   assert((V - (Vec3f*)tri->vertices) == tri->vertices_n);
@@ -1007,8 +1027,6 @@ Triangulation* TriangulationFactory::cylinder(Arena* arena, const Geometry* geo,
           *V++ = Vec3f(cosSinRadius[i], h[k]);
           *N++ = Vec3f(cosSin[i], 0);
           *T++ = encodeCylindricalTexCoord(iScale * i + iConst, distances[k], circumference);
-
-          store->addDebugLine(geo, Vec3f(cosSinRadius[i], h[k]), Vec3f(cosSinRadius[i], h[k]) + (0.05f/scale)*Vec3f(cosSin[i], 0), 0xffff00u);
         }
       }
       for (unsigned k = 0; k < 2; k++) {// clip texture seam.

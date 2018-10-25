@@ -23,6 +23,8 @@ struct Triangulation {
   float* vertices = nullptr;
   float* normals = nullptr;
   float* texCoords = nullptr;
+  Vec3f* dPdu = nullptr;
+  Vec3f* dPdv = nullptr;
   uint32_t* smoothingGroups = nullptr;
   uint32_t* indices = 0;
   uint32_t vertices_n = 0;

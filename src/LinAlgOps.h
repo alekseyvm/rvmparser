@@ -9,6 +9,8 @@ inline Vec2f operator-(const Vec2f& a, const Vec2f& b) { return Vec2f(a.x - b.x,
 
 inline Vec2f operator+(const Vec2f& a, const Vec2f& b) { return Vec2f(a.x + b.x, a.y + b.y); }
 
+inline Vec2f operator-(const Vec2f& a) { return Vec2f(-a.x, -a.y); }
+
 inline Vec3f cross(const Vec3f& a, const Vec3f& b)
 {
   return Vec3f(a.y * b.z - a.z * b.y,

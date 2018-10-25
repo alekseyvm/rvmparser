@@ -261,13 +261,14 @@ void ExportObj::geometry(struct Geometry* geometry)
     assert(geometry->triangulation);
     auto * tri = geometry->triangulation;
 
+    //if (geometry->kind != Geometry::Kind::CircularTorus) return;
+
     if (tri->dPdu && tri->dPdv) {
 
       for (unsigned i = 0; i < tri->vertices_n; i++) {
         auto & uu = tri->dPdu[i];
 
         if (uu.x == 0.f && uu.y == 0.f && uu.z == 0.f) continue;
-        continue;
 
         auto p = scale * mul(geometry->M_3x4, Vec3f(tri->vertices + 3 * i));
         auto n = normalize(mul(Mat3f(geometry->M_3x4.data), Vec3f(tri->normals + 3 * i)));

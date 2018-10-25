@@ -691,7 +691,6 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
           *V++ = Vec3f((ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[u], ct.radius * cosSin[v].y);
           *N++ = Vec3f(cosSin[v].x * cosSinMajor[u], cosSin[v].y);
           *T++ = encodeCylindricalTexCoord(vScale * v + vConst, distance, circumference);
-
           *dPdu++ = flipSign * Vec3f(-(ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[u].y,
                                       (ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[u].x,
                                      0.f);
@@ -708,9 +707,9 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
       for (unsigned v = 0; v < samplesMinor; v++) {
         *V++ = Vec3f((ct.radius*cosSin[v].x + ct.offset) * cosSinMajor[0], ct.radius*cosSin[v].y);
         *N++ = Vec3f(0, -1, 0);
-        *T++ = encodeCircularTexCoord(cosSin[v], scale * ct.radius);
-        *dPdu++ = Vec3f(0.f);
-        *dPdv++ = Vec3f(0.f);
+        *T++ = encodeCircularTexCoord(-cosSin[v], scale * ct.radius);
+        *dPdu++ = Vec3f(-1, 0, 0);
+        *dPdv++ = Vec3f(0, 0, -1);
       }
     }
     if (cap[1]) {
@@ -718,9 +717,9 @@ Triangulation* TriangulationFactory::circularTorus(Arena* arena, const Geometry*
       for (unsigned v = 0; v < samplesMinor; v++) {
         *V++ = Vec3f((ct.radius * cosSin[v].x + ct.offset) * cosSinMajor[m], ct.radius * cosSin[v].y);
         *N++ = Vec3f(-cosSinMajor[m].y, cosSinMajor[m].x, 0.f);
-        *T++ = encodeCircularTexCoord(cosSin[v], scale * ct.radius);
-        *dPdu++ = Vec3f(0.f);
-        *dPdv++ = Vec3f(0.f);
+        *T++ = encodeCircularTexCoord(Vec2f(-cosSin[v].x, cosSin[v].y), scale * ct.radius);
+        *dPdu++ = Vec3f(-cosSinMajor[m].x, -cosSinMajor[m].y, 0);
+        *dPdv++ = Vec3f(0, 0, 1);
       }
     }
     if (shell) {

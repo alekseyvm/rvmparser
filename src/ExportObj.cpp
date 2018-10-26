@@ -261,13 +261,13 @@ void ExportObj::geometry(struct Geometry* geometry)
     assert(geometry->triangulation);
     auto * tri = geometry->triangulation;
 
-    //if (geometry->kind != Geometry::Kind::CircularTorus) return;
+    if (geometry->kind != Geometry::Kind::Cylinder && geometry->kind != Geometry::Kind::CircularTorus) return;
 
     if (tri->dPdu && tri->dPdv) {
 
       for (unsigned i = 0; i < tri->vertices_n; i++) {
         auto & uu = tri->dPdu[i];
-
+        //if (geometry->kind == Geometry::Kind::CircularTorus) continue;
         if (uu.x == 0.f && uu.y == 0.f && uu.z == 0.f) continue;
 
         auto p = scale * mul(geometry->M_3x4, Vec3f(tri->vertices + 3 * i));
@@ -275,10 +275,12 @@ void ExportObj::geometry(struct Geometry* geometry)
         auto u = normalize(mul(Mat3f(geometry->M_3x4.data), tri->dPdu[i]));
         auto v = normalize(mul(Mat3f(geometry->M_3x4.data), tri->dPdv[i]));
 
-        auto o = p + 0.0001f*n;
+        auto o = p + 0.01f*n;
         auto ou = o + 0.05f*u;
         auto ov = o + 0.05f*v;
         auto on = o + 0.05f*cross(u, v);
+
+        assert(std::isfinite(on.x));
 
         fprintf(out, "v %f %f %f\n", o.x, o.y, o.z);
         fprintf(out, "v %f %f %f\n", ou.x, ou.y, ou.z);

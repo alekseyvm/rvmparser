@@ -31,6 +31,8 @@ public:
 
   unsigned discardedCaps = 0;
 
+  unsigned degenerateCylinders = 0;
+
 private:
   Store* store;
   Logger logger;

@@ -75,6 +75,7 @@ void Tessellator::init(class Store& store)
 
 void Tessellator::endModel()
 {
+  if (factory->degenerateCylinders) logger(1, "Discarded %d degenerate cylinders.", factory->degenerateCylinders);
   logger(0, "Discarded %u caps.", factory->discardedCaps);
 }
 

@@ -825,23 +825,19 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
   Vec2f halfOffset(0.5f*sn.offset[0], 0.5f*sn.offset[1]);
 
   float h2 = 0.5f*sn.height;
-  unsigned l = 0;
-  //auto ox = 0.5f*sn.offset[0];
-  //auto oy = 0.5f*sn.offset[1];
-  //float mb[2] = { std::tan(sn.bshear[0]), std::tan(sn.bshear[1]) };
-  //float mt[2] = { std::tan(sn.tshear[0]), std::tan(sn.tshear[1]) };
 
   Vec2f shearBottom(std::tan(sn.bshear[0]), std::tan(sn.bshear[1]));
   Vec2f shearTop(std::tan(sn.tshear[0]), std::tan(sn.tshear[1]));
 
   tri->vertices_n = (shell ? 2 * samples : 0) + (cap[0] ? samples : 0) + (cap[1] ? samples : 0);
+  tri->triangles_n = (shell ? 2 * samples : 0) + (cap[0] ? samples - 2 : 0) + (cap[1] ? samples - 2 : 0);
   tri->vertices = (float*)arena->alloc(3 * sizeof(float)*tri->vertices_n);
   tri->normals = (float*)arena->alloc(3 * sizeof(float)*tri->vertices_n);
+
   if (smoothingGroups) {
     tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->triangles_n);
   }
 
-  tri->triangles_n = (shell ? 2 * samples : 0) + (cap[0] ? samples - 2 : 0) + (cap[1] ? samples - 2 : 0);
   tri->indices = (uint32_t*)arena->alloc(3 * sizeof(uint32_t)*tri->triangles_n);
 
   auto * V = (Vec3f*)tri->vertices;
@@ -851,12 +847,9 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
 
   if (shell) {
     for (unsigned i = 0; i < samples; i++) {
-
       float s = dot(offset, cosSin[i]);
-
       *V++ = Vec3f(cosSinBottom[i] - halfOffset, -h2 + dot(shearBottom, cosSinBottom[i]));
       *N++ = Vec3f(cosSin[i], -(sn.radius_t - sn.radius_b + s) / sn.height);
-
       *V++ = Vec3f(cosSinTop[i] + halfOffset, h2 + dot(shearTop, cosSinTop[i]));
       *N++ = Vec3f(cosSin[i], -(sn.radius_t - sn.radius_b + s) / sn.height);
     }
@@ -880,43 +873,44 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
     }
   }
 
-  l = 0;
   unsigned o = 0;
   if (shell) {
     for (unsigned i = 0; i < samples; i++) {
       unsigned ii = (i + 1) % samples;
-      l = quadIndices(tri->indices, l, 0, 2 * i, 2 * ii, 2 * ii + 1, 2 * i + 1);
+      I = quadIndices_(I, o, 2 * i, 2 * ii, 2 * ii + 1, 2 * i + 1);
     }
     o += 2 * samples;
+    if (smoothingGroups) {
+      for (unsigned i = 0; i < 2 * samples; i++) *S++ = geo->componentId;
+    }
   }
 
-  u1.resize(samples);
-  u2.resize(samples);
   if (cap[0]) {
-    for (unsigned i = 0; i < samples; i++) {
-      u1[i] = o + (samples - 1) - i;
-    }
-    l = tessellateCircle(tri->indices, l, u2.data(), u1.data(), samples);
+    I = tessellateCircle_(I, o, 0, samples);
     o += samples;
+    if (smoothingGroups) {
+      auto sgrp = newSmoothingGroup();
+      for (unsigned i = 0; i < samples - 2; i++) *S++ = sgrp;
+    }
   }
   if (cap[1]) {
-    for (unsigned i = 0; i < samples; i++) {
-      u1[i] = o + i;
-    }
-    l = tessellateCircle(tri->indices, l, u2.data(), u1.data(), samples);
+    I = tessellateCircle_(I, o, 1, samples);
     o += samples;
+    if (smoothingGroups) {
+      auto sgrp = newSmoothingGroup();
+      for (unsigned i = 0; i < samples - 2; i++) *S++ = sgrp;
+    }
+
   }
-  assert(l == 3*tri->triangles_n);
   assert(o == tri->vertices_n);
 
   assert((V - (Vec3f*)tri->vertices) == tri->vertices_n);
   assert((N - (Vec3f*)tri->normals) == tri->vertices_n);
-  // FIXME  assert((I - tri->indices) == 3 * tri->triangles_n);
+  assert((I - tri->indices) == 3 * tri->triangles_n);
   assert(o == tri->vertices_n);
   if (smoothingGroups) {
-    // FIXME  assert((S - tri->smoothingGroups) == tri->triangles_n);
+    assert((S - tri->smoothingGroups) == tri->triangles_n);
   }
-
   return tri;
 }
 

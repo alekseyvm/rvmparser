@@ -809,51 +809,56 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
     }
   }
 
-  t0.resize(2 * samples);
+  cosSin.resize(samples);
+  cosSinRadius.resize(samples);
+  cosSinRadius1.resize(samples);
   for (unsigned i = 0; i < samples; i++) {
-    t0[2 * i + 0] = std::cos((twopi / samples)*i + geo->sampleStartAngle);
-    t0[2 * i + 1] = std::sin((twopi / samples)*i + geo->sampleStartAngle);
+    cosSin[i] = Vec2f(std::cos((twopi / samples)*i + geo->sampleStartAngle),
+                      std::sin((twopi / samples)*i + geo->sampleStartAngle));
+    cosSinRadius[i] = sn.radius_b * cosSin[i];
+    cosSinRadius1[i] = sn.radius_t * cosSin[i];
   }
-  t1.resize(2 * samples);
-  for (unsigned i = 0; i < 2 * samples; i++) {
-    t1[i] = sn.radius_b * t0[i];
-  }
-  t2.resize(2 * samples);
-  for (unsigned i = 0; i < 2 * samples; i++) {
-    t2[i] = sn.radius_t * t0[i];
-  }
+  auto & cosSinBottom = cosSinRadius;
+  auto & cosSinTop = cosSinRadius1;
+
+  Vec2f offset(sn.offset[0], sn.offset[1]);
+  Vec2f halfOffset(0.5f*sn.offset[0], 0.5f*sn.offset[1]);
 
   float h2 = 0.5f*sn.height;
   unsigned l = 0;
-  auto ox = 0.5f*sn.offset[0];
-  auto oy = 0.5f*sn.offset[1];
-  float mb[2] = { std::tan(sn.bshear[0]), std::tan(sn.bshear[1]) };
-  float mt[2] = { std::tan(sn.tshear[0]), std::tan(sn.tshear[1]) };
+  //auto ox = 0.5f*sn.offset[0];
+  //auto oy = 0.5f*sn.offset[1];
+  //float mb[2] = { std::tan(sn.bshear[0]), std::tan(sn.bshear[1]) };
+  //float mt[2] = { std::tan(sn.tshear[0]), std::tan(sn.tshear[1]) };
+
+  Vec2f shearBottom(std::tan(sn.bshear[0]), std::tan(sn.bshear[1]));
+  Vec2f shearTop(std::tan(sn.tshear[0]), std::tan(sn.tshear[1]));
 
   tri->vertices_n = (shell ? 2 * samples : 0) + (cap[0] ? samples : 0) + (cap[1] ? samples : 0);
   tri->vertices = (float*)arena->alloc(3 * sizeof(float)*tri->vertices_n);
   tri->normals = (float*)arena->alloc(3 * sizeof(float)*tri->vertices_n);
+  if (smoothingGroups) {
+    tri->smoothingGroups = (uint32_t*)arena->alloc(sizeof(uint32_t)*tri->triangles_n);
+  }
 
   tri->triangles_n = (shell ? 2 * samples : 0) + (cap[0] ? samples - 2 : 0) + (cap[1] ? samples - 2 : 0);
   tri->indices = (uint32_t*)arena->alloc(3 * sizeof(uint32_t)*tri->triangles_n);
 
+  auto * V = (Vec3f*)tri->vertices;
+  auto * N = (Vec3f*)tri->normals;
+  auto * I = tri->indices;
+  auto * S = tri->smoothingGroups;
+
   if (shell) {
     for (unsigned i = 0; i < samples; i++) {
-      float xb = t1[2 * i + 0] - ox;
-      float yb = t1[2 * i + 1] - oy;
-      float zb = -h2 + mb[0] * t1[2 * i + 0] + mb[1] * t1[2 * i + 1];
 
-      float xt = t2[2 * i + 0] + ox;
-      float yt = t2[2 * i + 1] + oy;
-      float zt = h2 + mt[0] * t2[2 * i + 0] + mt[1] * t2[2 * i + 1];
+      float s = dot(offset, cosSin[i]);
 
-      float s = (sn.offset[0] * t0[2 * i + 0] + sn.offset[1] * t0[2 * i + 1]);
-      float nx = t0[2 * i + 0];
-      float ny = t0[2 * i + 1];
-      float nz = -(sn.radius_t - sn.radius_b + s) / sn.height;
+      *V++ = Vec3f(cosSinBottom[i] - halfOffset, -h2 + dot(shearBottom, cosSinBottom[i]));
+      *N++ = Vec3f(cosSin[i], -(sn.radius_t - sn.radius_b + s) / sn.height);
 
-      l = vertex(tri->normals, tri->vertices, l, nx, ny, nz, xb, yb, zb);
-      l = vertex(tri->normals, tri->vertices, l, nx, ny, nz, xt, yt, zt);
+      *V++ = Vec3f(cosSinTop[i] + halfOffset, h2 + dot(shearTop, cosSinTop[i]));
+      *N++ = Vec3f(cosSin[i], -(sn.radius_t - sn.radius_b + s) / sn.height);
     }
   }
   if (cap[0]) {
@@ -861,10 +866,8 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
     auto ny = std::sin(sn.bshear[1]);
     auto nz = -std::cos(sn.bshear[0])*std::cos(sn.bshear[1]);
     for (unsigned i = 0; cap[0] && i < samples; i++) {
-      l = vertex(tri->normals, tri->vertices, l, nx, ny, nz,
-                 t1[2 * i + 0] - ox,
-                 t1[2 * i + 1] - oy,
-                 -h2 + mb[0] * t1[2 * i + 0] + mb[1] * t1[2 * i + 1]);
+      *V++ = Vec3f(cosSinBottom[i] - halfOffset, -h2 + dot(shearBottom, cosSinBottom[i]));
+      *N++ = Vec3f(nx, ny, nz);
     }
   }
   if (cap[1]) {
@@ -872,13 +875,10 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
     auto ny = -std::sin(sn.tshear[1]);
     auto nz = std::cos(sn.tshear[0])*std::cos(sn.tshear[1]);
     for (unsigned i = 0; i < samples; i++) {
-      l = vertex(tri->normals, tri->vertices, l, nx, ny, nz,
-                 t2[2 * i + 0] + ox,
-                 t2[2 * i + 1] + oy,
-                 h2 + mt[0] * t2[2 * i + 0] + mt[1] * t2[2 * i + 1]);
+      *V++ = Vec3f(cosSinTop[i] + halfOffset, h2 + dot(shearTop, cosSinTop[i]));
+      *N++ = Vec3f(nx, ny, nz);
     }
   }
-  assert(l == 3 * tri->vertices_n);
 
   l = 0;
   unsigned o = 0;
@@ -908,6 +908,14 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
   }
   assert(l == 3*tri->triangles_n);
   assert(o == tri->vertices_n);
+
+  assert((V - (Vec3f*)tri->vertices) == tri->vertices_n);
+  assert((N - (Vec3f*)tri->normals) == tri->vertices_n);
+  // FIXME  assert((I - tri->indices) == 3 * tri->triangles_n);
+  assert(o == tri->vertices_n);
+  if (smoothingGroups) {
+    // FIXME  assert((S - tri->smoothingGroups) == tri->triangles_n);
+  }
 
   return tri;
 }

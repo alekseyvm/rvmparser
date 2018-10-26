@@ -57,6 +57,7 @@ private:
 
   std::vector<Vec2f> cosSin;
   std::vector<Vec2f> cosSinRadius;
+  std::vector<Vec2f> cosSinRadius1;
 
   std::vector<Vec2f> cosSinMajor;
   std::vector<Vec2f> cosSinRadiusMajor;

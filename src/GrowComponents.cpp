@@ -67,6 +67,9 @@ namespace {
         case Geometry::Kind::CircularTorus:
           primitiveLength = item.geo->circularTorus.offset * item.geo->circularTorus.angle;
           break;
+        case Geometry::Kind::Snout:
+          primitiveLength = item.geo->snout.height;
+          break;
         case Geometry::Kind::Cylinder:
           primitiveLength = item.geo->cylinder.height;
           break;

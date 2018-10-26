@@ -261,7 +261,8 @@ void ExportObj::geometry(struct Geometry* geometry)
     assert(geometry->triangulation);
     auto * tri = geometry->triangulation;
 
-    if (geometry->kind != Geometry::Kind::Cylinder && geometry->kind != Geometry::Kind::CircularTorus) return;
+    if (geometry->kind != Geometry::Kind::Cylinder && geometry->kind != Geometry::Kind::Snout) return;
+
 
     if (tri->dPdu && tri->dPdv) {
 
@@ -269,6 +270,7 @@ void ExportObj::geometry(struct Geometry* geometry)
         auto & uu = tri->dPdu[i];
         //if (geometry->kind == Geometry::Kind::CircularTorus) continue;
         if (uu.x == 0.f && uu.y == 0.f && uu.z == 0.f) continue;
+        continue;
 
         auto p = scale * mul(geometry->M_3x4, Vec3f(tri->vertices + 3 * i));
         auto n = normalize(mul(Mat3f(geometry->M_3x4.data), Vec3f(tri->normals + 3 * i)));
@@ -297,7 +299,10 @@ void ExportObj::geometry(struct Geometry* geometry)
       }
     }
 
-    useColor(geometry->colorName, geometry->color);
+    if(geometry->kind == Geometry::Kind::Snout)
+      useColor(geometry->colorName, 0xffffff);
+    else
+      useColor(geometry->colorName, 0x444444);
 
     if (tri->indices != 0) {
       //fprintf(out, "g\n");

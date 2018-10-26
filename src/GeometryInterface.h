@@ -24,4 +24,4 @@ struct Interface
 
 Interface getInterface(const Geometry* geo, unsigned o);
 
-bool doInterfacesMatch(const Geometry* geo, const Connection* con);
+bool doInterfacesMatch(const Geometry* geo, const Connection* con, float radialEpsilon);

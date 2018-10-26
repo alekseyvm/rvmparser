@@ -37,6 +37,7 @@ private:
   Store* store;
   Logger logger;
   float tolerance = 0.f / 0.f;
+  float radialMatchEpsilon = 0.01f;  // World space size 
   unsigned minSamples = 3;
   unsigned maxSamples = 100;
   bool texcoords = false;

@@ -6,7 +6,7 @@ Interface getInterface(const Geometry* geo, unsigned o)
 {
   Interface interface;
   auto * connection = geo->connections[o];
-  auto ix = connection->geo[0] == geo ? 1 : 0;
+  auto ix = connection->geo[0] == geo ? 0 : 1;
   auto scale = getScale(geo->M_3x4);
   switch (geo->kind) {
   case Geometry::Kind::Pyramid: {
@@ -124,7 +124,7 @@ Interface getInterface(const Geometry* geo, unsigned o)
   return interface;
 }
 
-bool doInterfacesMatch(const Geometry* geo, const Connection* con)
+bool doInterfacesMatch(const Geometry* geo, const Connection* con, float radialEpsilon)
 {
   bool isFirst = geo == con->geo[0];
 
@@ -141,14 +141,14 @@ bool doInterfacesMatch(const Geometry* geo, const Connection* con)
 
   if (thisIFace.kind == Interface::Kind::Circular) {
 
-    return thisIFace.circular.radius <= 1.05f*thatIFace.circular.radius;
+    return std::abs(thisIFace.circular.radius - thatIFace.circular.radius) < radialEpsilon;
 
   }
   else {
     for (unsigned j = 0; j < 4; j++) {
       bool found = false;
       for (unsigned i = 0; i < 4; i++) {
-        if (distanceSquared(thisIFace.square.p[j], thatIFace.square.p[i]) < 0.001f*0.001f) {
+        if (distanceSquared(thisIFace.square.p[j], thatIFace.square.p[i]) < radialEpsilon*radialEpsilon) {
           found = true;
         }
       }

@@ -56,6 +56,7 @@ private:
   std::vector<float> t2;
 
   std::vector<Vec2f> cosSin;
+  std::vector<Vec2f> cosSin1;
   std::vector<Vec2f> cosSinRadius;
   std::vector<Vec2f> cosSinRadius1;
 

@@ -786,12 +786,17 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
   //}
   
   auto & sn = geo->snout;
-  auto radius_max = std::max(sn.radius_b, sn.radius_t);
-  unsigned segments = sagittaBasedSegmentCount(twopi, radius_max, scale);
-  unsigned samples = segments;  // assumed to be closed
+  unsigned segmentsB = sagittaBasedSegmentCount(twopi, sn.radius_b, scale);
+  unsigned samplesB = segmentsB;  // assumed to be closed
+
+  unsigned segmentsT = sagittaBasedSegmentCount(twopi, sn.radius_t, scale);
+  unsigned samplesT = segmentsT;  // assumed to be closed
 
   auto * tri = arena->alloc<Triangulation>();
-  tri->error = sagittaBasedError(twopi, radius_max, scale, segments);
+  tri->error = std::max(sagittaBasedError(twopi, sn.radius_b, scale, samplesB),
+                        sagittaBasedError(twopi, sn.radius_t, scale, samplesT));
+  auto samplesMin = std::min(samplesT, samplesB);
+  auto samplesMax = std::max(samplesT, samplesB);
 
   bool shell = true;
   bool cap[2] = { true, true };
@@ -809,17 +814,27 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
     }
   }
 
-  cosSin.resize(samples);
-  cosSinRadius.resize(samples);
-  cosSinRadius1.resize(samples);
-  for (unsigned i = 0; i < samples; i++) {
-    cosSin[i] = Vec2f(std::cos((twopi / samples)*i + geo->sampleStartAngle),
-                      std::sin((twopi / samples)*i + geo->sampleStartAngle));
-    cosSinRadius[i] = sn.radius_b * cosSin[i];
-    cosSinRadius1[i] = sn.radius_t * cosSin[i];
+  auto & cosSinB = cosSin;
+  auto & cosSinT = cosSin1;
+  auto & cosSinRadiusB = cosSinRadius;
+  auto & cosSinRadiusT = cosSinRadius1;
+
+  cosSinB.resize(samplesB);
+  cosSinRadiusB.resize(samplesB);
+  for (unsigned i = 0; i < samplesB; i++) {
+    cosSinB[i] = Vec2f(std::cos((twopi / samplesB)*i + geo->sampleStartAngle),
+                       std::sin((twopi / samplesB)*i + geo->sampleStartAngle));
+    cosSinRadiusB[i] = sn.radius_b * cosSinB[i];
   }
-  auto & cosSinBottom = cosSinRadius;
-  auto & cosSinTop = cosSinRadius1;
+
+  cosSinT.resize(samplesT);
+  cosSinRadiusT.resize(samplesT);
+  for (unsigned i = 0; i < samplesT; i++) {
+    cosSinT[i] = Vec2f(std::cos((twopi / samplesT)*i + geo->sampleStartAngle),
+                       std::sin((twopi / samplesT)*i + geo->sampleStartAngle));
+    cosSinRadiusT[i] = sn.radius_t * cosSinT[i];
+  }
+
 
   Vec2f offset(sn.offset[0], sn.offset[1]);
   Vec2f halfOffset(0.5f*sn.offset[0], 0.5f*sn.offset[1]);
@@ -829,8 +844,10 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
   Vec2f shearBottom(std::tan(sn.bshear[0]), std::tan(sn.bshear[1]));
   Vec2f shearTop(std::tan(sn.tshear[0]), std::tan(sn.tshear[1]));
 
-  tri->vertices_n = (shell ? 2 * samples : 0) + (cap[0] ? samples : 0) + (cap[1] ? samples : 0);
-  tri->triangles_n = (shell ? 2 * samples : 0) + (cap[0] ? samples - 2 : 0) + (cap[1] ? samples - 2 : 0);
+  auto shellTriangleCount = 2 * samplesMin + (samplesMax - samplesMin);
+
+  tri->vertices_n = (shell ? samplesB + samplesT : 0) + (cap[0] ? samplesB : 0) + (cap[1] ? samplesT : 0);
+  tri->triangles_n = (shell ? shellTriangleCount : 0) + (cap[0] ? samplesB - 2 : 0) + (cap[1] ? samplesT - 2 : 0);
   tri->vertices = (float*)arena->alloc(3 * sizeof(float)*tri->vertices_n);
   tri->normals = (float*)arena->alloc(3 * sizeof(float)*tri->vertices_n);
 
@@ -846,20 +863,25 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
   auto * S = tri->smoothingGroups;
 
   if (shell) {
-    for (unsigned i = 0; i < samples; i++) {
-      float s = dot(offset, cosSin[i]);
-      *V++ = Vec3f(cosSinBottom[i] - halfOffset, -h2 + dot(shearBottom, cosSinBottom[i]));
-      *N++ = Vec3f(cosSin[i], -(sn.radius_t - sn.radius_b + s) / sn.height);
-      *V++ = Vec3f(cosSinTop[i] + halfOffset, h2 + dot(shearTop, cosSinTop[i]));
-      *N++ = Vec3f(cosSin[i], -(sn.radius_t - sn.radius_b + s) / sn.height);
+    for (unsigned i = 0; i < samplesB; i++) {
+      float s = dot(offset, cosSinB[i]);
+      *V++ = Vec3f(cosSinRadiusB[i] - halfOffset, -h2 + dot(shearBottom, cosSinRadiusB[i]));
+      *N++ = Vec3f(cosSinB[i], -(sn.radius_t - sn.radius_b + s) / sn.height);
     }
+
+    for (unsigned i = 0; i < samplesT; i++) {
+      float s = dot(offset, cosSinT[i]);
+      *V++ = Vec3f(cosSinRadiusT[i] + halfOffset, h2 + dot(shearTop, cosSinRadiusT[i]));
+      *N++ = Vec3f(cosSinT[i], -(sn.radius_t - sn.radius_b + s) / sn.height);
+    }
+
   }
   if (cap[0]) {
     auto nx = std::sin(sn.bshear[0])*std::cos(sn.bshear[1]);
     auto ny = std::sin(sn.bshear[1]);
     auto nz = -std::cos(sn.bshear[0])*std::cos(sn.bshear[1]);
-    for (unsigned i = 0; cap[0] && i < samples; i++) {
-      *V++ = Vec3f(cosSinBottom[i] - halfOffset, -h2 + dot(shearBottom, cosSinBottom[i]));
+    for (unsigned i = 0; cap[0] && i < samplesB; i++) {
+      *V++ = Vec3f(cosSinRadiusB[i] - halfOffset, -h2 + dot(shearBottom, cosSinRadiusB[i]));
       *N++ = Vec3f(nx, ny, nz);
     }
   }
@@ -867,40 +889,69 @@ Triangulation* TriangulationFactory::snout(Arena* arena, const Geometry* geo, fl
     auto nx = -std::sin(sn.tshear[0])*std::cos(sn.tshear[1]);
     auto ny = -std::sin(sn.tshear[1]);
     auto nz = std::cos(sn.tshear[0])*std::cos(sn.tshear[1]);
-    for (unsigned i = 0; i < samples; i++) {
-      *V++ = Vec3f(cosSinTop[i] + halfOffset, h2 + dot(shearTop, cosSinTop[i]));
+    for (unsigned i = 0; i < samplesT; i++) {
+      *V++ = Vec3f(cosSinRadiusT[i] + halfOffset, h2 + dot(shearTop, cosSinRadiusT[i]));
       *N++ = Vec3f(nx, ny, nz);
     }
   }
 
   unsigned o = 0;
   if (shell) {
-    for (unsigned i = 0; i < samples; i++) {
-      unsigned ii = (i + 1) % samples;
-      I = quadIndices_(I, o, 2 * i, 2 * ii, 2 * ii + 1, 2 * i + 1);
+    unsigned ob = o;
+    unsigned ot = ob + samplesB;
+    if (samplesB < samplesT) {
+      unsigned cb = 0;
+      for (unsigned i = 0; i < samplesT; i++) {
+        unsigned nb = ((samplesB*(i + 1)) / samplesT) % samplesB;
+        unsigned nt = (i + 1) % samplesT;
+        if (cb != nb) {
+          *I++ = ob + cb;
+          *I++ = ob + nb;
+          *I++ = ot + i;
+        }
+        *I++ = ot + nt;
+        *I++ = ot + i;
+        *I++ = ob + nb;
+        cb = nb;
+      }
     }
-    o += 2 * samples;
+    else {
+      unsigned ct = 0;
+      for (unsigned i = 0; i < samplesB; i++) {
+        unsigned nb = (i + 1) % samplesB;
+        unsigned nt = ((samplesT*(i + 1)) / samplesB) % samplesT;
+        *I++ = ob + i;
+        *I++ = ob + nb;
+        *I++ = ot + nt;
+        if (ct != nt) {
+          *I++ = ot + nt;
+          *I++ = ot + ct;
+          *I++ = ob + i;
+        }
+        ct = nt;
+      }
+    }
+    o += samplesB + samplesT;
     if (smoothingGroups) {
-      for (unsigned i = 0; i < 2 * samples; i++) *S++ = geo->componentId;
+      for (unsigned i = 0; i < shellTriangleCount; i++) *S++ = geo->componentId;
     }
   }
 
   if (cap[0]) {
-    I = tessellateCircle_(I, o, 0, samples);
-    o += samples;
+    I = tessellateCircle_(I, o, 0, samplesB);
+    o += samplesB;
     if (smoothingGroups) {
       auto sgrp = newSmoothingGroup();
-      for (unsigned i = 0; i < samples - 2; i++) *S++ = sgrp;
+      for (unsigned i = 0; i < samplesB - 2; i++) *S++ = sgrp;
     }
   }
   if (cap[1]) {
-    I = tessellateCircle_(I, o, 1, samples);
-    o += samples;
+    I = tessellateCircle_(I, o, 1, samplesT);
+    o += samplesT;
     if (smoothingGroups) {
       auto sgrp = newSmoothingGroup();
-      for (unsigned i = 0; i < samples - 2; i++) *S++ = sgrp;
+      for (unsigned i = 0; i < samplesT - 2; i++) *S++ = sgrp;
     }
-
   }
   assert(o == tri->vertices_n);
 
